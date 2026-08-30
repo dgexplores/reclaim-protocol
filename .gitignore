@@ -18,3 +18,5 @@ frontend/.next
 frontend/out
 lighthouse
 *.tsbuildinfo
+frontend/next-env.d.ts
+package-lock.json

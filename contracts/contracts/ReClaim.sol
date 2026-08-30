@@ -55,14 +55,15 @@ contract ReClaim is Ownable, ReentrancyGuard {
 
     /// @notice Submit proof of recycling. Mints NFT + tokens if valid.
     function submitProof(
-        Material material,
+        uint8 material,
         uint8 confidence,
         string calldata ipfsCID,
         bytes32 imageHash
     ) external nonReentrant returns (uint256 tokenId) {
         if (confidence < MIN_CONFIDENCE) revert LowConfidence();
         if (usedImageHashes[imageHash]) revert DuplicateImage();
-        if (uint8(material) > 5) revert InvalidMaterial();
+        if (material > 5) revert InvalidMaterial();
+        Material m = Material(material);
 
         usedImageHashes[imageHash] = true;
 
@@ -70,10 +71,10 @@ contract ReClaim is Ownable, ReentrancyGuard {
         tokenId = receipt.mint(msg.sender, uri);
         receiptHash[tokenId] = imageHash;
 
-        uint256 reward = rewardTable[material];
+        uint256 reward = rewardTable[m];
         if (reward > 0) token.mint(msg.sender, reward);
 
-        emit ProofSubmitted(msg.sender, tokenId, material, imageHash, ipfsCID);
+        emit ProofSubmitted(msg.sender, tokenId, m, imageHash, ipfsCID);
         // lottery logic: in production use Chainlink VRF. Here pseudo-random for MVP
         // 10% deterministic mock: if hash %10 ==0 -> emit challenge opportunity
     }

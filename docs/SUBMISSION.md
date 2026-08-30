@@ -47,6 +47,13 @@ Full guide: `docs/DEMO_GUIDE.md`
 ## Presentation
 See `docs/PITCH_DECK.md` (10 slides) — export to PDF for Devpost upload.
 
+## Additional Competitive Docs (Optional but Strong)
+- `docs/ARCHITECTURE.md` — mermaid + AI pipeline + gas
+- `docs/SECURITY.md` — pre-audit checklist
+- `docs/TEST_REPORT.md` — 27 tests + integration + gas
+- `docs/COMPETITIVE_EDGE.md` — judging criteria mapping
+- `verify.sh` — one-command rebuild verification
+
 ## AI Disclosure
 Used AI for: data augmentation code, UI boilerplate, contract review. Core reward logic, anti-gaming, and tokenomics human-designed. Team can explain all code.
 
