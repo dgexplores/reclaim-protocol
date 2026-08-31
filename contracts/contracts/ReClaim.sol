@@ -27,12 +27,22 @@ contract ReClaim is Ownable, ReentrancyGuard {
     event ProofSubmitted(address indexed user, uint256 indexed tokenId, Material material, bytes32 imageHash, string ipfsCID);
     event Challenged(uint256 indexed tokenId, address indexed auditor);
     event Slashed(address indexed user, uint256 tokenId);
+    event AuditorStaked(address indexed auditor, uint256 amount);
+    event AuditorWithdrawn(address indexed auditor, uint256 amount);
+    event RewardUpdated(Material indexed material, uint256 oldReward, uint256 newReward);
 
     error LowConfidence();
     error DuplicateImage();
     error InvalidMaterial();
+    error EmptyCID();
+    error ZeroHash();
+    error ZeroAddress();
+    error NotStaked();
+    error NoReceipt();
+    error InsufficientStake();
 
     constructor(address _token, address _receipt) Ownable(msg.sender) {
+        if (_token == address(0) || _receipt == address(0)) revert ZeroAddress();
         token = ReClaimToken(_token);
         receipt = ReceiptNFT(_receipt);
         // init rewards
@@ -45,12 +55,26 @@ contract ReClaim is Ownable, ReentrancyGuard {
     }
 
     function setReward(Material m, uint256 amount) external onlyOwner {
+        uint256 old = rewardTable[m];
         rewardTable[m] = amount;
+        emit RewardUpdated(m, old, amount);
     }
 
     function stakeAuditor() external {
-        token.transferFrom(msg.sender, address(this), AUDITOR_STAKE_REQUIRED);
+        if (token.balanceOf(msg.sender) < AUDITOR_STAKE_REQUIRED) revert InsufficientStake();
+        // requires prior approve
+        bool ok = token.transferFrom(msg.sender, address(this), AUDITOR_STAKE_REQUIRED);
+        require(ok, "Transfer failed");
         auditorStake[msg.sender] += AUDITOR_STAKE_REQUIRED;
+        emit AuditorStaked(msg.sender, AUDITOR_STAKE_REQUIRED);
+    }
+
+    function withdrawStake(uint256 amount) external {
+        if (auditorStake[msg.sender] < amount) revert InsufficientStake();
+        auditorStake[msg.sender] -= amount;
+        bool ok = token.transfer(msg.sender, amount);
+        require(ok, "Transfer failed");
+        emit AuditorWithdrawn(msg.sender, amount);
     }
 
     /// @notice Submit proof of recycling. Mints NFT + tokens if valid.
@@ -60,6 +84,8 @@ contract ReClaim is Ownable, ReentrancyGuard {
         string calldata ipfsCID,
         bytes32 imageHash
     ) external nonReentrant returns (uint256 tokenId) {
+        if (bytes(ipfsCID).length == 0) revert EmptyCID();
+        if (imageHash == bytes32(0)) revert ZeroHash();
         if (confidence < MIN_CONFIDENCE) revert LowConfidence();
         if (usedImageHashes[imageHash]) revert DuplicateImage();
         if (material > 5) revert InvalidMaterial();
@@ -80,13 +106,23 @@ contract ReClaim is Ownable, ReentrancyGuard {
     }
 
     function challenge(uint256 tokenId) external {
-        require(auditorStake[msg.sender] >= AUDITOR_STAKE_REQUIRED, "Not staked");
-        require(receipt.ownerOf(tokenId) != address(0), "No receipt");
+        if (auditorStake[msg.sender] < AUDITOR_STAKE_REQUIRED) revert NotStaked();
+        // ownerOf reverts if not exists, capture
+        try receipt.ownerOf(tokenId) returns (address) {
+        } catch {
+            revert NoReceipt();
+        }
         emit Challenged(tokenId, msg.sender);
         // DAO vote placeholder - owner can slash in MVP
     }
 
     function slash(uint256 tokenId, address offender) external onlyOwner {
+        bytes32 h = receiptHash[tokenId];
+        if (h != bytes32(0)) {
+            // allow re-use of image hash after slash? Keep blocked to prevent replay of fraudulent image
+            // but clear receipt mapping
+            delete receiptHash[tokenId];
+        }
         receipt.burn(tokenId);
         emit Slashed(offender, tokenId);
     }

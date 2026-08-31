@@ -93,10 +93,17 @@ describe("ReClaim — Comprehensive / Competitive Audit", () => {
   });
 
   describe("Auditor & challenge", () => {
+    it("reverts on empty CID", async () => {
+      const h = ethers.keccak256(ethers.toUtf8Bytes("empty"));
+      await expect(reclaim.connect(user).submitProof(0,90,"",h)).to.be.revertedWithCustomError(reclaim,"EmptyCID");
+    });
+    it("reverts on zero hash", async () => {
+      await expect(reclaim.connect(user).submitProof(0,90,"Qm",ethers.ZeroHash)).to.be.revertedWithCustomError(reclaim,"ZeroHash");
+    });
     it("challenge without stake reverts", async () => {
       const h = ethers.keccak256(ethers.toUtf8Bytes("chal"));
       await reclaim.connect(user).submitProof(0,90,"Qm",h);
-      await expect(reclaim.connect(auditor).challenge(0)).to.be.revertedWith("Not staked");
+      await expect(reclaim.connect(auditor).challenge(0)).to.be.revertedWithCustomError(reclaim,"NotStaked");
     });
     it("staked auditor can challenge", async () => {
       // fund auditor with 100+ tokens: submit two high-value proofs
@@ -116,10 +123,10 @@ describe("ReClaim — Comprehensive / Competitive Audit", () => {
 
   describe("Token minter isolation", () => {
     it("only reclaim can mint token", async () => {
-      await expect(token.connect(user).mint(user.address, 100)).to.be.revertedWith("Not minter");
+      await expect(token.connect(user).mint(user.address, 100)).to.be.revertedWithCustomError(token,"NotMinter");
     });
     it("only reclaim can mint NFT", async () => {
-      await expect(nft.connect(user).mint(user.address,"ipfs://x")).to.be.revertedWith("Not minter");
+      await expect(nft.connect(user).mint(user.address,"ipfs://x")).to.be.revertedWithCustomError(nft,"NotMinter");
     });
     it("owner can rotate minter", async () => {
       await token.setMinter(user.address);

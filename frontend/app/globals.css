@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+* { font-variant-ligatures: common-ligatures; }
+html { scroll-behavior: smooth; }
+body {
+  background: #FFFBF0;
+  color: #0F0F0E;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: #FFB800; color: #0F0F0E; }
+
+/* Paper fiber subtle */
+.paper-fiber {
+  background-image:
+    radial-gradient(rgba(15,15,14,0.04) 1px, transparent 1px),
+    radial-gradient(rgba(15,15,14,0.025) 1px, transparent 1px);
+  background-position: 0 0, 12px 12px;
+  background-size: 24px 24px;
+}
+.perforation {
+  background-image: radial-gradient(circle, #0F0F0E 1.25px, transparent 1.6px);
+  background-size: 10px 10px;
+  background-repeat: repeat-x;
+  height: 10px;
+}
+.thermal-fade { mask-image: linear-gradient(to bottom, black 82%, transparent 100%); }
+.focus-ring:focus-visible { outline: 2px solid #FF3B30; outline-offset: 2px; }
+/* Motion safety */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

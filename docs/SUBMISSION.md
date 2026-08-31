@@ -10,7 +10,7 @@ No trustless, decentralized way to prove household recycling on-chain. Leads to 
 Phone camera + on-device AI classifies trash → IPFS hash + Base L2 smart contract mints Receipt NFT + $RECLAIM tokens (material-weighted). Randomized staked auditors + duplicate-hash guard prevent gaming. Every phone becomes a DePIN waste oracle.
 
 ## Prototype/MVP Links
-- **GitHub:** https://github.com/your-team/reclaim-protocol (this repo, MIT, public)
+- **GitHub:** https://github.com/dgexplores/reclaim-protocol (this repo, MIT, public)
 - **Live Demo:** https://reclaim-protocol.vercel.app (or http://localhost:3000)
 - **Video:** https://youtu.be/xxxx (90s demo, unlisted)
 - **Contracts (Base Sepolia):**
@@ -28,7 +28,7 @@ Phone camera + on-device AI classifies trash → IPFS hash + Base L2 smart contr
 ## Setup & Usage (Copy-paste for judges)
 
 ```bash
-git clone https://github.com/your-team/reclaim-protocol
+git clone https://github.com/dgexplores/reclaim-protocol
 cd reclaim-protocol
 npm install
 cd contracts && npm install && npx hardhat test

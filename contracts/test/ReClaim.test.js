@@ -44,7 +44,16 @@ describe("ReClaim", () => {
     // mint some to auditor via a proof first
     const hash = ethers.keccak256(ethers.toUtf8Bytes("stake"));
     await reclaim.connect(auditor).submitProof(3, 90, "QmCID", hash); // 30 tokens
-    // need 100, will fail
-    await expect(reclaim.connect(auditor).stakeAuditor()).to.be.reverted;
+    // need 100, will fail with InsufficientStake
+    await expect(reclaim.connect(auditor).stakeAuditor()).to.be.revertedWithCustomError(reclaim, "InsufficientStake");
+  });
+  it("reverts on empty CID and zero hash", async () => {
+    const h = ethers.keccak256(ethers.toUtf8Bytes("x"));
+    await expect(reclaim.connect(user).submitProof(0, 90, "", h)).to.be.revertedWithCustomError(reclaim, "EmptyCID");
+    await expect(reclaim.connect(user).submitProof(0, 90, "Qm", ethers.ZeroHash)).to.be.revertedWithCustomError(reclaim, "ZeroHash");
+  });
+  it("rejects zero address in constructor", async () => {
+    const ReClaim = await ethers.getContractFactory("ReClaim");
+    await expect(ReClaim.deploy(ethers.ZeroAddress, await nft.getAddress())).to.be.revertedWithCustomError(ReClaim, "ZeroAddress");
   });
 });

@@ -16,7 +16,7 @@ Export 1080p, upload to YouTube unlisted + Loom, link here.
 ## How to Run Locally
 
 ```bash
-git clone https://github.com/your-team/reclaim-protocol
+git clone https://github.com/dgexplores/reclaim-protocol
 cd reclaim-protocol
 # contracts
 cd contracts
@@ -53,7 +53,7 @@ npm run dev
 
 ## Submission Links Template
 
-- GitHub: https://github.com/your-team/reclaim-protocol
+- GitHub: https://github.com/dgexplores/reclaim-protocol
 - Demo: https://reclaim-protocol.vercel.app
 - Video: https://youtu.be/xxxx
 - Deck: https://pitch.com/reclaim or PDF in docs/

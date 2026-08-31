@@ -47,10 +47,11 @@ Existing solutions are centralized databases (RecycleBank, etc.) or manual audit
 - **Live Demo:** `https://reclaim-protocol.vercel.app` (deploy after hackathon)
 - **Video:** `docs/demo-video-link.md` (1-2 min pitch + screen capture)
 - **Testnet:** Base Sepolia `0x...` (see `contracts/deployments.json`)
+- **GitHub:** `https://github.com/dgexplores/reclaim-protocol`
 - **Quick Start:** See [Demo Guide](docs/DEMO_GUIDE.md)
 
 ```bash
-git clone https://github.com/your-team/reclaim-protocol
+git clone https://github.com/dgexplores/reclaim-protocol
 cd reclaim-protocol
 npm install
 # contracts

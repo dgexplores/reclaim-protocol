@@ -11,13 +11,20 @@ contract ReceiptNFT is ERC721URIStorage, Ownable {
 
     constructor() ERC721("ReClaim Receipt", "RCRPT") Ownable(msg.sender) {}
 
+    error NotMinter();
+    error ZeroAddress();
+    event MinterUpdated(address indexed oldMinter, address indexed newMinter);
+
     modifier onlyMinter() {
-        require(msg.sender == minter, "Not minter");
+        if (msg.sender != minter) revert NotMinter();
         _;
     }
 
     function setMinter(address _minter) external onlyOwner {
+        if (_minter == address(0)) revert ZeroAddress();
+        address old = minter;
         minter = _minter;
+        emit MinterUpdated(old, _minter);
     }
 
     function mint(address to, string memory tokenURI_) external onlyMinter returns (uint256) {
