@@ -27,6 +27,9 @@ export default function Home() {
   const [tx, setTx] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+  const [successDrawn, setSuccessDrawn] = useState(false);
 
   async function startCamera() {
     setErr(null);
@@ -58,6 +61,33 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [scanning]);
+
+  // Text swap on result change
+  useEffect(() => {
+    if (result) {
+      setIsSwapping(true);
+      const t = setTimeout(() => setIsSwapping(false), 280);
+      return () => clearTimeout(t);
+    }
+  }, [result?.label]);
+
+  // Shake on err
+  useEffect(() => {
+    if (err) {
+      setIsShaking(true);
+      const t = setTimeout(() => setIsShaking(false), 520);
+      return () => clearTimeout(t);
+    }
+  }, [err]);
+
+  // Success draw on tx
+  useEffect(() => {
+    if (tx) {
+      setSuccessDrawn(false);
+      const id = requestAnimationFrame(() => requestAnimationFrame(() => setSuccessDrawn(true)));
+      return () => cancelAnimationFrame(id);
+    } else setSuccessDrawn(false);
+  }, [tx]);
 
   function triggerScan() {
     setScanning(true);
@@ -290,11 +320,14 @@ export default function Home() {
                   {scanning && <span className="absolute left-3 right-3 h-[2px] bg-scanner shadow-[0_0_12px_rgba(255,59,48,0.9)] animate-scan" />}
                 </div>
 
-                {/* Confidence pill */}
+                {/* Confidence pill — text swap on material change */}
                 {result && (
                   <div className="absolute left-3 bottom-3 right-3 flex items-center justify-between gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[12px] font-medium shadow-[0_6px_16px_rgba(0,0,0,0.24)]">
-                      <span className={`h-2 w-2 rounded-full ${result.confidence >= 85 ? "bg-verified" : "bg-scanner"}`} /> {result.label} • {result.confidence}%
+                      <span className={`h-2 w-2 rounded-full ${result.confidence >= 85 ? "bg-verified" : "bg-scanner"}`} />
+                      <span className={`t-textswap ${isSwapping ? "is-swapping" : ""}`}>
+                        <span className="t-textswap-inner">{result.label} • {result.confidence}%</span>
+                      </span>
                     </span>
                     <span className="hidden sm:inline-flex rounded-full bg-ink text-paper px-3 py-1.5 font-mono text-[11px] tracking-[0.06em] uppercase">{result.sku}</span>
                   </div>
@@ -333,11 +366,20 @@ export default function Home() {
                   <span className="ml-auto hidden sm:inline font-mono text-[11px] tracking-[0.08em] uppercase opacity-85">SPACE</span>
                 </button>
 
-                {err && <p role="alert" className="mt-3 rounded-[10px] bg-[#FFF2F2] border border-[#FFD6D6] px-3 py-2 font-mono text-[12px] leading-4 text-[#8A1F1F]">{err}</p>}
+                <div className={`t-shake ${isShaking ? "is-shaking" : ""}`}>
+                  {err && (
+                    <p role="alert" className={`mt-3 rounded-[10px] px-3 py-2 font-mono text-[12px] leading-4 border t-shake-field ${err ? "is-error" : ""} bg-[#FFF2F2] border-[#FFD6D6] text-[#8A1F1F] t-shake-msg ${err ? "is-visible" : ""}`}>
+                      {err}
+                    </p>
+                  )}
+                </div>
 
-                {/* Mint rail */}
-                {result && cid && (
-                  <div className="mt-3 rounded-[14px] border border-rule bg-paper p-3">
+                {/* Mint rail — panel reveal */}
+                <div className={`t-panel ${result && cid ? "is-open" : ""}`}>
+                  <div className="t-panel-inner">
+                    <div className="t-panel-content">
+                      {result && cid && (
+                        <div className="mt-3 rounded-[14px] border border-rule bg-paper p-3">
                     <div className="flex items-center justify-between">
                       <p className="font-mono text-[11px] tracking-[0.08em] uppercase text-inkMuted">Ready to mint</p>
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium ${result.confidence >= 85 ? "bg-verifiedBg text-verified" : "bg-[#FFF2F2] text-[#8A1F1F]"}`}>
@@ -359,10 +401,20 @@ export default function Home() {
                     <p className="mt-2 text-center font-mono text-[10px] tracking-[0.06em] uppercase text-inkMuted">Mock IPFS + mock tx for demo • Wire to wagmi for Base Sepolia</p>
                   </div>
                 )}
+                    </div>
+                  </div>
+                </div>
 
+                {/* Success check — focal moment */}
                 {tx && (
-                  <div className="mt-3 rounded-[12px] bg-verifiedBg border border-[#C7E8E1] px-3 py-2.5 flex items-center justify-between">
-                    <p className="font-mono text-[12px] text-verified font-medium">Minted — open on BaseScan</p>
+                  <div className={`mt-3 rounded-[12px] border px-3 py-2.5 flex items-center gap-3 bg-verifiedBg border-[#C7E8E1] t-success ${successDrawn ? "is-drawn" : ""}`}>
+                    <span className="t-success-pop inline-flex h-7 w-7 shrink-0 place-items-center rounded-full bg-verified text-white">
+                      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+                        <circle cx="11" cy="11" r="8.5" stroke="white" strokeWidth="1.6" className="t-success-circle" fill="none" />
+                        <path d="M7 11.2L10 14L15.2 8.2" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="t-success-check" fill="none" />
+                      </svg>
+                    </span>
+                    <p className="font-mono text-[12px] text-verified font-medium flex-1">Minted — open on BaseScan</p>
                     <a href={`https://sepolia.basescan.org/tx/${tx}`} target="_blank" rel="noreferrer" className="font-mono text-[12px] underline underline-offset-2 text-verified hover:text-ink">View tx ↗</a>
                   </div>
                 )}

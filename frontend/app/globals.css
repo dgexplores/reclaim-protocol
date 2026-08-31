@@ -30,7 +30,90 @@ body {
 }
 .thermal-fade { mask-image: linear-gradient(to bottom, black 82%, transparent 100%); }
 .focus-ring:focus-visible { outline: 2px solid #FF3B30; outline-offset: 2px; }
-/* Motion safety */
+
+/* Motion tokens — transitions.dev scale */
+:root {
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-out: ease-out;
+  --ease-linear: linear;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --blur-small: 2px;
+  --blur-medium: 3px;
+}
+
+/* Panel reveal — mint rail */
+.t-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-slow) var(--ease-smooth-out);
+}
+.t-panel.is-open { grid-template-rows: 1fr; }
+.t-panel-inner { overflow: hidden; }
+.t-panel-content {
+  opacity: 0;
+  filter: blur(var(--blur-small));
+  transform: translateY(var(--distance-medium));
+  transition: opacity var(--duration-slow) var(--ease-smooth-out), filter var(--duration-slow) var(--ease-smooth-out), transform var(--duration-slow) var(--ease-smooth-out);
+}
+.t-panel.is-open .t-panel-content { opacity: 1; filter: blur(0); transform: translateY(0); }
+
+/* Text states swap — material label */
+.t-textswap { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; }
+.t-textswap-inner {
+  display: inline-block;
+  transition: transform var(--duration-fast) var(--ease-in-out), filter var(--duration-fast) var(--ease-in-out), opacity var(--duration-fast) var(--ease-in-out);
+}
+.t-textswap.is-swapping .t-textswap-inner {
+  transform: translateY(calc(-1 * var(--distance-micro)));
+  filter: blur(var(--blur-small));
+  opacity: 0;
+}
+
+/* Error shake */
+@keyframes t-shake {
+  0%,100% { transform: translateX(0); }
+  15% { transform: translateX(calc(-1 * var(--distance-base))); }
+  30% { transform: translateX(var(--distance-base)); }
+  45% { transform: translateX(calc(-1 * var(--distance-small))); }
+  60% { transform: translateX(var(--distance-small)); }
+  75% { transform: translateX(calc(-1 * var(--distance-micro))); }
+}
+.t-shake.is-shaking { animation: t-shake 420ms var(--ease-out); }
+.t-shake-field.is-error { border-color: #FF3B30 !important; }
+.t-shake-msg { opacity: 0; transform: translateY(calc(-1 * var(--distance-micro))); transition: opacity var(--duration-quick) var(--ease-out), transform var(--duration-quick) var(--ease-out); }
+.t-shake-msg.is-visible { opacity: 1; transform: translateY(0); }
+
+/* Success check — focal moment */
+.t-success { position: relative; }
+.t-success-circle { stroke-dasharray: 88; stroke-dashoffset: 88; transition: stroke-dashoffset var(--duration-very-slow) var(--ease-smooth-out); }
+.t-success.is-drawn .t-success-circle { stroke-dashoffset: 0; }
+.t-success-check { stroke-dasharray: 22; stroke-dashoffset: 22; transition: stroke-dashoffset 220ms var(--ease-smooth-out) 280ms; }
+.t-success.is-drawn .t-success-check { stroke-dashoffset: 0; }
+.t-success-pop { transform: scale(0.96); opacity: 0; filter: blur(var(--blur-small)); transition: transform var(--duration-very-slow) var(--ease-bounce), opacity var(--duration-fast) var(--ease-out), filter var(--duration-fast) var(--ease-out); }
+.t-success.is-drawn .t-success-pop { transform: scale(1); opacity: 1; filter: blur(0); }
+
+/* Icon swap — camera toggle */
+.t-icon { position: relative; width: 18px; height: 18px; overflow: hidden; }
+.t-icon-swap { position: absolute; inset: 0; display: grid; place-items: center; transition: transform var(--duration-fast) var(--ease-in-out), filter var(--duration-fast) var(--ease-in-out), opacity var(--duration-fast) var(--ease-in-out); }
+.t-icon-swap.out { transform: translateY(var(--distance-micro)) scale(0.96); filter: blur(var(--blur-small)); opacity: 0; }
+.t-icon-swap.in { transform: translateY(0) scale(1); filter: blur(0); opacity: 1; }
+
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .t-panel { transition: none; }
+  .t-panel-content { transition: none; }
 }
