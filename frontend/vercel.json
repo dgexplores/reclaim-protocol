@@ -1,0 +1,18 @@
+{
+  "framework": "nextjs",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    }
+  ],
+  "crons": [],
+  "rewrites": [],
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 10
+    }
+  }
+}
