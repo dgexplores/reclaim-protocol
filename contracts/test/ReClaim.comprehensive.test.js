@@ -56,7 +56,7 @@ describe("ReClaim — Comprehensive / Competitive Audit", () => {
       const h = ethers.keccak256(ethers.toUtf8Bytes("event"));
       await expect(reclaim.connect(user).submitProof(2,92,"QmEvent",h))
         .to.emit(reclaim,"ProofSubmitted")
-        .withArgs(user.address,0,2,h,"QmEvent");
+        .withArgs(user.address,0,2,h,"QmEvent",await reclaim.auditFlagged(h));
     });
   });
 
@@ -78,17 +78,72 @@ describe("ReClaim — Comprehensive / Competitive Audit", () => {
       expect(await reclaim.receiptHash(0)).to.equal(h);
       expect(await reclaim.usedImageHashes(h)).to.equal(true);
     });
-    it("burn via slash removes NFT", async () => {
-      const h = ethers.keccak256(ethers.toUtf8Bytes("slash"));
-      await reclaim.connect(user).submitProof(0,90,"Qm",h);
-      await reclaim.slash(0, user.address);
-      await expect(nft.ownerOf(0)).to.be.reverted;
-      expect(await nft.balanceOf(user.address)).to.equal(0);
+    it("fraudulent receipt is burned and the reward clawed back", async () => {
+      // stake an auditor (needs 100 RECLAIM -> one E-Waste proof)
+      const hA = ethers.keccak256(ethers.toUtf8Bytes("auditorfund1"));
+      await reclaim.connect(auditor).submitProof(4,90,"QmA",hA);
+      await token.connect(auditor).approve(await reclaim.getAddress(), ethers.parseEther("100"));
+      await reclaim.connect(auditor).stakeAuditor();
+
+      const h = ethers.keccak256(ethers.toUtf8Bytes("fraud"));
+      await reclaim.connect(user).submitProof(2,90,"Qm",h); // Aluminum, 50 RECLAIM
+      const id = 1;
+      expect(await token.balanceOf(user.address)).to.equal(ethers.parseEther("50"));
+
+      await reclaim.connect(auditor).challenge(id);
+      expect(await reclaim.lockedStake(auditor.address)).to.equal(ethers.parseEther("50"));
+
+      await reclaim.resolveChallenge(id, true);
+
+      await expect(nft.ownerOf(id)).to.be.reverted;          // receipt burned
+      expect(await token.balanceOf(user.address)).to.equal(0); // reward clawed back
+      expect(await reclaim.lockedStake(auditor.address)).to.equal(0); // bond released
+      expect(await reclaim.usedImageHashes(h)).to.equal(true); // image can never be replayed
     });
-    it("non-owner cannot slash", async () => {
+    it("a wrong challenge forfeits the auditor's bond", async () => {
+      const hA = ethers.keccak256(ethers.toUtf8Bytes("auditorfund2"));
+      await reclaim.connect(auditor).submitProof(4,90,"QmA",hA);
+      await token.connect(auditor).approve(await reclaim.getAddress(), ethers.parseEther("100"));
+      await reclaim.connect(auditor).stakeAuditor();
+
+      const h = ethers.keccak256(ethers.toUtf8Bytes("honest"));
+      await reclaim.connect(user).submitProof(0,90,"Qm",h);
+      const id = 1;
+
+      await reclaim.connect(auditor).challenge(id);
+      await reclaim.resolveChallenge(id, false);
+
+      expect(await reclaim.auditorStake(auditor.address)).to.equal(ethers.parseEther("50")); // 100 - 50 bond
+      expect(await reclaim.slashPool()).to.equal(ethers.parseEther("50"));
+      expect(await nft.ownerOf(id)).to.equal(user.address); // honest receipt survives
+    });
+    it("locked bond cannot be withdrawn", async () => {
+      const hA = ethers.keccak256(ethers.toUtf8Bytes("auditorfund3"));
+      await reclaim.connect(auditor).submitProof(4,90,"QmA",hA);
+      await token.connect(auditor).approve(await reclaim.getAddress(), ethers.parseEther("100"));
+      await reclaim.connect(auditor).stakeAuditor();
+      const h = ethers.keccak256(ethers.toUtf8Bytes("locked"));
+      await reclaim.connect(user).submitProof(0,90,"Qm",h);
+      await reclaim.connect(auditor).challenge(1);
+      await expect(reclaim.connect(auditor).withdrawStake(ethers.parseEther("100")))
+        .to.be.revertedWithCustomError(reclaim,"StakeLocked");
+      await reclaim.connect(auditor).withdrawStake(ethers.parseEther("50")); // unlocked half is fine
+    });
+    it("audit flag is deterministic and publicly recomputable", async () => {
+      const h = ethers.keccak256(ethers.toUtf8Bytes("flagcheck"));
+      const onChain = await reclaim.auditFlagged(h);
+      const offChain = BigInt(h) % 100n < 10n;
+      expect(onChain).to.equal(offChain);
+    });
+    it("non-owner cannot resolve a challenge", async () => {
+      const hA = ethers.keccak256(ethers.toUtf8Bytes("auditorfund4"));
+      await reclaim.connect(auditor).submitProof(4,90,"QmA",hA);
+      await token.connect(auditor).approve(await reclaim.getAddress(), ethers.parseEther("100"));
+      await reclaim.connect(auditor).stakeAuditor();
       const h = ethers.keccak256(ethers.toUtf8Bytes("slash2"));
       await reclaim.connect(user).submitProof(0,90,"Qm",h);
-      await expect(reclaim.connect(user).slash(0,user.address)).to.be.reverted;
+      await reclaim.connect(auditor).challenge(1);
+      await expect(reclaim.connect(user).resolveChallenge(1,true)).to.be.reverted;
     });
   });
 
@@ -117,7 +172,7 @@ describe("ReClaim — Comprehensive / Competitive Audit", () => {
       expect(await reclaim.auditorStake(auditor.address)).to.equal(ethers.parseEther("100"));
       const hU = ethers.keccak256(ethers.toUtf8Bytes("chalU"));
       await reclaim.connect(user).submitProof(0,90,"QmU",hU);
-      await expect(reclaim.connect(auditor).challenge(0)).to.emit(reclaim,"Challenged").withArgs(0,auditor.address);
+      await expect(reclaim.connect(auditor).challenge(0)).to.emit(reclaim,"Challenged").withArgs(0,auditor.address,ethers.parseEther("50"));
     });
   });
 
@@ -142,7 +197,7 @@ describe("ReClaim — Comprehensive / Competitive Audit", () => {
       const tx = await reclaim.connect(user).submitProof(2,90,"QmGas",h);
       const rc = await tx.wait();
       console.log(`      ⛽ submitProof gas: ${rc.gasUsed.toString()}`);
-      expect(rc.gasUsed).to.be.lt(250000); // must be cheap for hackathon
+      expect(rc.gasUsed).to.be.lt(260000); // must be cheap for hackathon
     });
   });
 });

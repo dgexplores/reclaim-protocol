@@ -29,4 +29,12 @@ contract ReClaimToken is ERC20, Ownable {
     function mint(address to, uint256 amount) external onlyMinter {
         _mint(to, amount);
     }
+
+    /// @notice Clawback path used when a receipt is proven fraudulent.
+    /// Burns up to `amount`; if the holder already spent some, burns what is left.
+    function burnFrom(address from, uint256 amount) external onlyMinter returns (uint256 burned) {
+        uint256 bal = balanceOf(from);
+        burned = amount < bal ? amount : bal;
+        if (burned > 0) _burn(from, burned);
+    }
 }

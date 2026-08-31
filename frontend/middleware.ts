@@ -46,17 +46,6 @@ export function middleware(req: NextRequest) {
         },
       });
     }
-    // Auth check for submit: require wallet header or allow for health
-    if (path === "/api/submit") {
-      const perWallet = req.headers.get("x-wallet-address") || ip;
-      const w = rateLimit(`w:${perWallet}`, 10, 60_000);
-      if (!w.allowed) {
-        return new NextResponse(JSON.stringify({ error: "Wallet rate limit: 10 submits/min", code: "WALLET_RATE_LIMITED" }), {
-          status: 429,
-          headers: { "Content-Type": "application/json", "Retry-After": "60", "x-request-id": reqId },
-        });
-      }
-    }
   }
 
   return res;

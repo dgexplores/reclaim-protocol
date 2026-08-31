@@ -1,35 +1,55 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { useAccount, useConnect, useDisconnect, useWriteContract, usePublicClient, useSwitchChain } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
+import { MATERIALS, loadModel, classify, type Material } from "@/lib/classify";
+import { captureFrame, fileToImage, hashImage, pinToIPFS } from "@/lib/proof";
+import { RECLAIM_ABI, CONTRACT_ADDRESS } from "@/lib/contract";
 
-// Materials -- varied sizing hints forPegboard
-const MATERIALS = [
-  { id: 2, label: "Aluminum", sku: "AL-50", reward: 50, tint: "bg-[#FFF2F2] border-[#FFD6D6] text-[#8A1F1F]", acc: "text-scanner" },
-  { id: 4, label: "E-Waste", sku: "EW-100", reward: 100, tint: "bg-[#FFF8E6] border-[#FFE9A8] text-[#7A5B00]", acc: "text-[#7A5B00]" },
-  { id: 3, label: "Glass", sku: "GL-30", reward: 30, tint: "bg-[#EAF6F4] border-[#C7E8E1] text-[#0E5A4F]", acc: "text-verified" },
-  { id: 0, label: "PET Plastic", sku: "PT-20", reward: 20, tint: "bg-[#F3F3F0] border-[#E5E2DA] text-inkMuted", acc: "text-ink" },
-  { id: 1, label: "HDPE", sku: "HD-20", reward: 20, tint: "bg-[#F3F3F0] border-[#E5E2DA] text-inkMuted", acc: "text-ink" },
-  { id: 5, label: "Organic", sku: "OR-10", reward: 10, tint: "bg-[#F0F7E6] border-[#D7EAC2] text-[#3D5A18]", acc: "text-[#3D5A18]" },
-];
+type Result = Material & { confidence: number; rawClass: string };
 
-function mockClassify() {
-  const idx = Math.floor(Math.random() * MATERIALS.length);
-  const conf = 88 + Math.floor(Math.random() * 10);
-  return { ...MATERIALS[idx], confidence: conf };
-}
+// Presentation only. The material list itself lives with the classifier.
+const TINT: Record<number, string> = {
+  0: "bg-[#F3F3F0] border-[#E5E2DA] text-inkMuted",
+  1: "bg-[#F3F3F0] border-[#E5E2DA] text-inkMuted",
+  2: "bg-[#FFF2F2] border-[#FFD6D6] text-[#8A1F1F]",
+  3: "bg-[#EAF6F4] border-[#C7E8E1] text-[#0E5A4F]",
+  4: "bg-[#FFF8E6] border-[#FFE9A8] text-[#7A5B00]",
+  5: "bg-[#F0F7E6] border-[#D7EAC2] text-[#3D5A18]",
+};
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [streamOn, setStreamOn] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<null | (typeof MATERIALS[number] & { confidence: number })>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [cid, setCid] = useState<string | null>(null);
-  const [hash, setHash] = useState<string | null>(null);
+  const [hash, setHash] = useState<`0x${string}` | null>(null);
   const [tx, setTx] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [modelReady, setModelReady] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [successDrawn, setSuccessDrawn] = useState(false);
+
+  const { address, isConnected, chainId } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
+
+  // Warm the classifier up front so the first scan is not the slow one.
+  useEffect(() => {
+    let alive = true;
+    loadModel()
+      .then(() => alive && setModelReady(true))
+      .catch(() => alive && setErr("Could not load the on-device classifier. Check your connection and reload."));
+    return () => { alive = false; };
+  }, []);
 
   async function startCamera() {
     setErr(null);
@@ -40,29 +60,29 @@ export default function Home() {
         await videoRef.current.play();
         setStreamOn(true);
       }
-    } catch (e: any) {
-      setErr("Camera blocked — use Upload. Needs HTTPS + permission.");
+    } catch {
+      setErr("Camera blocked. Use Upload instead. Live camera needs HTTPS and permission.");
     }
   }
-  function stopCamera() {
+  const stopCamera = useCallback(() => {
     const s = videoRef.current?.srcObject as MediaStream | null;
     s?.getTracks().forEach((t) => t.stop());
     if (videoRef.current) videoRef.current.srcObject = null;
     setStreamOn(false);
-  }
-  useEffect(() => () => stopCamera(), []);
+  }, []);
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.code === "Space" && !scanning) {
+      if (e.code === "Space" && !scanning && streamOn) {
         e.preventDefault();
         triggerScan();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scanning]);
+  }, [scanning, streamOn]);
 
-  // Text swap on result change
   useEffect(() => {
     if (result) {
       setIsSwapping(true);
@@ -71,7 +91,6 @@ export default function Home() {
     }
   }, [result?.label]);
 
-  // Shake on err
   useEffect(() => {
     if (err) {
       setIsShaking(true);
@@ -80,7 +99,6 @@ export default function Home() {
     }
   }, [err]);
 
-  // Success draw on tx
   useEffect(() => {
     if (tx) {
       setSuccessDrawn(false);
@@ -89,47 +107,146 @@ export default function Home() {
     } else setSuccessDrawn(false);
   }, [tx]);
 
-  function triggerScan() {
-    setScanning(true);
-    setPrinting(false);
-    setTx(null);
-    setErr(null);
-    setTimeout(() => {
-      const r = mockClassify();
-      // Use crypto for less predictable mock in demo; real would be keccak256(imageBytes+ts)
-      const rnd = () => {
-        const a = new Uint8Array(8);
-        crypto.getRandomValues(a);
-        return Array.from(a).map((b) => b.toString(16).padStart(2, "0")).join("");
-      };
-      const mockCid = "bafy" + rnd().slice(0, 22);
-      const mockHash = "0x" + rnd() + rnd();
-      setResult(r);
-      setCid(mockCid);
-      setHash(mockHash);
-      setScanning(false);
-      setPrinting(true);
-      setTimeout(() => setPrinting(false), 640);
-    }, 900);
+  // Real on-chain receipts. Empty until the contract is deployed and used.
+  const [proofs, setProofs] = useState<Array<{ tokenId: bigint; material: number; imageHash: string; auditFlagged: boolean; txHash: string }>>([]);
+  useEffect(() => {
+    if (!CONTRACT_ADDRESS || !publicClient) return;
+    let alive = true;
+    // Bounded lookback. "earliest" rescans the chain on every mount and most
+    // public RPCs reject a range that wide.
+    const LOOKBACK = 50_000n;
+    publicClient
+      .getBlockNumber()
+      .then((head) =>
+        publicClient.getLogs({
+          address: CONTRACT_ADDRESS,
+          event: RECLAIM_ABI.find((x) => x.type === "event" && x.name === "ProofSubmitted") as any,
+          fromBlock: head > LOOKBACK ? head - LOOKBACK : 0n,
+        })
+      )
+      .then((logs) => {
+        if (!alive) return;
+        setProofs(
+          logs.slice(-12).reverse().map((l: any) => ({
+            tokenId: l.args.tokenId as bigint,
+            material: Number(l.args.material),
+            imageHash: l.args.imageHash as string,
+            auditFlagged: Boolean(l.args.auditFlagged),
+            txHash: l.transactionHash as string,
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [publicClient, tx]);
+
+  const totalRewards = proofs.reduce((n, p) => n + (MATERIALS[p.material]?.reward ?? 0), 0);
+  const flaggedCount = proofs.filter((p) => p.auditFlagged).length;
+
+  function reset() {
+    setResult(null); setCid(null); setHash(null); setTx(null); setErr(null); setStatus(null);
   }
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files?.[0]) {
-      if (e.target.files[0].size > 8 * 1024 * 1024) { setErr("Image too large — max 8MB."); return; }
-      triggerScan();
+  /**
+   * The real pipeline: frame -> on-device MobileNet -> keccak256 of the exact
+   * bytes -> IPFS pin. Nothing is fabricated; a failure at any step stops here.
+   */
+  async function runProof(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement, blob: Blob) {
+    setStatus("Classifying on device…");
+    const c = await classify(source);
+    if (!c.ok) { setErr(c.reason); return; }
+
+    setResult({ ...c.material, confidence: c.confidence, rawClass: c.rawClass });
+    setPrinting(true);
+    setTimeout(() => setPrinting(false), 640);
+
+    setStatus("Hashing proof…");
+    const h = await hashImage(blob);
+    setHash(h);
+
+    // Duplicate check against chain before we spend an IPFS pin on it.
+    if (CONTRACT_ADDRESS && publicClient) {
+      const used = await publicClient.readContract({
+        address: CONTRACT_ADDRESS, abi: RECLAIM_ABI, functionName: "usedImageHashes", args: [h],
+      }).catch(() => false);
+      if (used) {
+        setErr("This exact image was already claimed on-chain. Duplicates are rejected by the contract.");
+        return;
+      }
+    }
+
+    setStatus("Pinning to IPFS…");
+    try {
+      setCid(await pinToIPFS(blob));
+    } catch (e: any) {
+      setErr(e?.message || "Could not pin the proof to IPFS.");
     }
   }
 
+  async function triggerScan() {
+    if (!videoRef.current || !streamOn) { setErr("Start the camera or upload an image first."); return; }
+    if (!modelReady) { setErr("Classifier is still loading, give it a moment."); return; }
+    reset(); setScanning(true);
+    try {
+      const { blob, canvas } = await captureFrame(videoRef.current);
+      await runProof(canvas, blob);
+    } catch (e: any) {
+      setErr(e?.message || "Scan failed.");
+    } finally {
+      setScanning(false); setStatus(null);
+    }
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { setErr("Image too large, max 8MB."); return; }
+    if (!modelReady) { setErr("Classifier is still loading, give it a moment."); return; }
+    reset(); setScanning(true);
+    try {
+      const img = await fileToImage(file);
+      await runProof(img, file);
+    } catch (e: any) {
+      setErr(e?.message || "Could not read that image.");
+    } finally {
+      setScanning(false); setStatus(null);
+      e.target.value = "";
+    }
+  }
+
+  /** Real Base Sepolia write. No tx hash exists unless the chain produced one. */
   async function submitProof() {
     if (!result || !cid || !hash) return;
-    if (result.confidence < 85) { setErr("Confidence below 85 — retake sharper, fill frame."); return; }
-    const rnd = () => {
-      const a = new Uint8Array(8);
-      crypto.getRandomValues(a);
-      return Array.from(a).map((b) => b.toString(16).padStart(2, "0")).join("");
-    };
-    const fakeTx = "0x" + rnd() + rnd() + rnd() + rnd().slice(0, 0);
-    setTx(fakeTx.slice(0, 66));
+    if (!CONTRACT_ADDRESS) { setErr("No contract address configured. Set NEXT_PUBLIC_CONTRACT_ADDRESS after deploying."); return; }
+    if (!isConnected) { setErr("Connect a wallet to mint the receipt."); return; }
+    if (chainId !== baseSepolia.id) {
+      try { await switchChain({ chainId: baseSepolia.id }); }
+      catch { setErr("Switch your wallet to Base Sepolia to continue."); return; }
+    }
+    setSubmitting(true); setErr(null); setStatus("Confirm in your wallet…");
+    try {
+      const txHash = await writeContractAsync({
+        address: CONTRACT_ADDRESS,
+        abi: RECLAIM_ABI,
+        functionName: "submitProof",
+        args: [result.id, result.confidence, cid, hash],
+      });
+      setStatus("Waiting for confirmation…");
+      await publicClient?.waitForTransactionReceipt({ hash: txHash });
+      setTx(txHash);
+      setStatus(null);
+    } catch (e: any) {
+      const m: string = e?.shortMessage || e?.message || "Transaction failed.";
+      setErr(
+        m.includes("DuplicateImage") ? "Contract rejected it: this image hash is already claimed."
+        : m.includes("LowConfidence") ? "Contract rejected it: confidence is below the 85% threshold."
+        : m.includes("User rejected") ? "You rejected the transaction in your wallet."
+        : m
+      );
+      setStatus(null);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -160,6 +277,20 @@ export default function Home() {
           <a href="https://github.com/dgexplores/reclaim-protocol" target="_blank" className="inline-flex items-center gap-2 border border-rule bg-white px-3 py-1.5 rounded-full hover:border-ink transition-colors">
             <span className="h-2 w-2 rounded-full bg-ink" /> GitHub
           </a>
+          {isConnected ? (
+            <button onClick={() => disconnect()} className="focus-ring inline-flex items-center gap-2 rounded-full bg-ink text-paper px-3 py-1.5 hover:bg-black transition-colors" title={address}>
+              <span className="h-2 w-2 rounded-full bg-verified" />
+              {address?.slice(0, 6)}…{address?.slice(-4)}
+            </button>
+          ) : (
+            <button
+              onClick={() => connectors[0] && connect({ connector: connectors[0] })}
+              disabled={!connectors.length}
+              className="focus-ring inline-flex items-center gap-2 rounded-full bg-ink text-paper px-3 py-1.5 hover:bg-black transition-colors disabled:opacity-40"
+            >
+              {connectors.length ? "Connect wallet" : "No wallet found"}
+            </button>
+          )}
         </nav>
         <a href="https://github.com/dgexplores/reclaim-protocol" className="md:hidden font-mono text-[12px] border border-rule bg-white px-3 py-1.5 rounded-full">GitHub</a>
       </header>
@@ -183,7 +314,7 @@ export default function Home() {
             {/* Pegboard material chips — varied sizes, not uniform cards */}
             <div className="mt-5 flex flex-wrap gap-2">
               {MATERIALS.map((m) => (
-                <span key={m.sku} className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-mono tracking-[0.04em] ${m.tint}`}>
+                <span key={m.sku} className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-mono tracking-[0.04em] ${TINT[m.id]}`}>
                   <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                   {m.label} <span className="opacity-60">•</span> {m.reward}
                 </span>
@@ -355,14 +486,14 @@ export default function Home() {
 
                 <button
                   onClick={triggerScan}
-                  disabled={scanning}
+                  disabled={scanning || !modelReady}
                   aria-label="Scan trash"
                   className="focus-ring mt-3 w-full inline-flex items-center justify-center gap-3 rounded-full bg-scanner text-white px-6 py-[14px] text-[15px] font-semibold tracking-[-0.01em] shadow-scanner hover:bg-scannerDark disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
                   <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-scanner">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5h10M2 9h10M5 2v10M9 2v10" stroke="currentColor" strokeWidth="1.4" /></svg>
                   </span>
-                  {scanning ? "Reading material…" : "Pull trigger — Scan"}
+                  {scanning ? (status || "Reading material…") : modelReady ? "Pull trigger, scan" : "Loading classifier…"}
                   <span className="ml-auto hidden sm:inline font-mono text-[11px] tracking-[0.08em] uppercase opacity-85">SPACE</span>
                 </button>
 
@@ -393,12 +524,15 @@ export default function Home() {
                     </div>
                     <button
                       onClick={submitProof}
-                      disabled={!!tx || result.confidence < 85}
+                      disabled={!!tx || submitting || !cid || result.confidence < 85}
                       className="focus-ring mt-3 w-full rounded-full bg-ink text-paper py-3 text-[14px] font-medium hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {tx ? "✓ Proof submitted — view receipt" : "Submit proof → Mint receipt NFT"}
+                      {tx ? "✓ Minted on Base Sepolia" : submitting ? (status || "Submitting…") : !isConnected ? "Connect wallet to mint" : "Submit proof, mint receipt NFT"}
                     </button>
-                    <p className="mt-2 text-center font-mono text-[10px] tracking-[0.06em] uppercase text-inkMuted">Mock IPFS + mock tx for demo • Wire to wagmi for Base Sepolia</p>
+                    <p className="mt-2 text-center font-mono text-[10px] tracking-[0.06em] uppercase text-inkMuted">
+                      MobileNet v2 on device{result?.rawClass ? ` \u00b7 saw "${result.rawClass}"` : ""} \u00b7 keccak256 of the pinned bytes
+                      {CONTRACT_ADDRESS ? " \u00b7 Base Sepolia" : " \u00b7 set NEXT_PUBLIC_CONTRACT_ADDRESS to mint"}
+                    </p>
                   </div>
                 )}
                     </div>
@@ -487,8 +621,8 @@ export default function Home() {
       <section id="proofs" className="max-w-[1160px] mx-auto px-5 md:px-6 mt-8">
         <div className="rounded-[18px] border border-ink bg-ink text-paper overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 md:px-6 py-4 border-b border-white/10">
-            <p className="font-mono text-[11px] tracking-[0.12em] uppercase text-white/70">Live lattice • recent proofs on Base Sepolia</p>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white text-ink px-3 py-1.5 font-mono text-[11px] font-medium"><span className="h-1.5 w-1.5 rounded-full bg-verified animate-pulse" /> 2,847 receipts</span>
+            <p className="font-mono text-[11px] tracking-[0.12em] uppercase text-white/70">Live lattice • ProofSubmitted events on Base Sepolia</p>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white text-ink px-3 py-1.5 font-mono text-[11px] font-medium"><span className="h-1.5 w-1.5 rounded-full bg-verified animate-pulse" /> {proofs.length} receipts</span>
           </div>
           <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-0">
             <div className="p-5 md:p-6">
@@ -503,23 +637,36 @@ export default function Home() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-3 font-mono text-[11px]">
-                <span className="rounded-[12px] bg-white text-ink px-3 py-3"><span className="block text-inkMuted text-[10px] tracking-[0.08em] uppercase">Today diverted</span><span className="block font-display text-[18px] font-semibold tracking-[-0.02em] mt-1">41.2 kg</span></span>
-                <span className="rounded-[12px] bg-white text-ink px-3 py-3"><span className="block text-inkMuted text-[10px] tracking-[0.08em] uppercase">Avg confidence</span><span className="block font-display text-[18px] font-semibold tracking-[-0.02em] mt-1">92.4%</span></span>
-                <span className="rounded-[12px] bg-scanner text-white px-3 py-3"><span className="block text-white/80 text-[10px] tracking-[0.08em] uppercase">Rewards paid</span><span className="block font-display text-[18px] font-semibold tracking-[-0.02em] mt-1">18,430</span></span>
+                <span className="rounded-[12px] bg-white text-ink px-3 py-3"><span className="block text-inkMuted text-[10px] tracking-[0.08em] uppercase">Receipts minted</span><span className="block font-display text-[18px] font-semibold tracking-[-0.02em] mt-1">{proofs.length}</span></span>
+                <span className="rounded-[12px] bg-white text-ink px-3 py-3"><span className="block text-inkMuted text-[10px] tracking-[0.08em] uppercase">Audit flagged</span><span className="block font-display text-[18px] font-semibold tracking-[-0.02em] mt-1">{flaggedCount}</span></span>
+                <span className="rounded-[12px] bg-scanner text-white px-3 py-3"><span className="block text-white/80 text-[10px] tracking-[0.08em] uppercase">Rewards paid</span><span className="block font-display text-[18px] font-semibold tracking-[-0.02em] mt-1">{totalRewards.toLocaleString()}</span></span>
               </div>
             </div>
             <div className="border-t lg:border-t-0 lg:border-l border-white/10 p-5 md:p-6">
               <p className="font-mono text-[11px] tracking-[0.1em] uppercase text-white/70">Recent receipts</p>
               <div className="mt-3 space-y-2">
-                {[
-                  { id: "#0427", mat: "Aluminum", rew: "50", conf: "96%", hash: "0x9F…6E0" },
-                  { id: "#0426", mat: "Glass", rew: "30", conf: "91%", hash: "0x3A…F12" },
-                  { id: "#0425", mat: "E-Waste", rew: "100", conf: "89%", hash: "0x7C…A04" },
-                ].map((r) => (
-                  <div key={r.id} className="flex items-center justify-between rounded-[12px] border border-white/10 bg-white/[0.06] px-3 py-2.5 font-mono text-[12px]">
-                    <span className="text-white font-medium">{r.id} • {r.mat}</span>
-                    <span className="text-white/70">{r.conf} • {r.hash} • <span className="text-white">{r.rew} RECLAIM</span></span>
-                  </div>
+                {proofs.length === 0 ? (
+                  <p className="rounded-[12px] border border-dashed border-white/20 px-3 py-4 font-mono text-[11px] leading-4 text-white/55">
+                    {CONTRACT_ADDRESS
+                      ? "No receipts minted yet. Scan something to be the first."
+                      : "Not connected to a deployment. Set NEXT_PUBLIC_CONTRACT_ADDRESS to stream live receipts."}
+                  </p>
+                ) : proofs.map((r) => (
+                  <a
+                    key={r.txHash + String(r.tokenId)}
+                    href={`https://sepolia.basescan.org/tx/${r.txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between rounded-[12px] border border-white/10 bg-white/[0.06] px-3 py-2.5 font-mono text-[12px] hover:border-white/30 transition-colors"
+                  >
+                    <span className="text-white font-medium">
+                      #{String(r.tokenId).padStart(4, "0")} • {MATERIALS[r.material]?.label}
+                      {r.auditFlagged && <span className="ml-2 rounded-full bg-caution/90 text-ink px-1.5 py-0.5 text-[10px]">AUDIT</span>}
+                    </span>
+                    <span className="text-white/70">
+                      {r.imageHash.slice(0, 6)}…{r.imageHash.slice(-3)} • <span className="text-white">{MATERIALS[r.material]?.reward} RECLAIM</span>
+                    </span>
+                  </a>
                 ))}
               </div>
               <a href="https://sepolia.basescan.org" target="_blank" className="mt-4 inline-flex items-center gap-2 font-mono text-[12px] text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">View on BaseScan ↗</a>

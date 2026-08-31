@@ -7,26 +7,45 @@ import "./ReClaimToken.sol";
 import "./ReceiptNFT.sol";
 
 /// @title ReClaim - Trash-to-Token core protocol
-/// @notice Verifies image hash uniqueness, mints NFT + ERC20, lotteries auditors
+/// @notice Verifies image-hash uniqueness, mints Receipt NFT + $RECLAIM, and lets
+///         staked auditors challenge a receipt with real economic consequences.
 contract ReClaim is Ownable, ReentrancyGuard {
     ReClaimToken public token;
     ReceiptNFT public receipt;
 
     enum Material { PET, HDPE, Aluminum, Glass, EWaste, Organic }
 
-    // reward per material in wei (18 decimals), e.g., 20 ether = 20 RECLAIM
+    struct Receipt_ {
+        address submitter;
+        uint96 reward;
+    }
+
+    struct Challenge {
+        address challenger;
+        uint96 bond;
+        bool open;
+    }
+
     mapping(Material => uint256) public rewardTable;
     mapping(bytes32 => bool) public usedImageHashes;
     mapping(address => uint256) public auditorStake;
+    mapping(address => uint256) public lockedStake; // bonded into open challenges
     mapping(uint256 => bytes32) public receiptHash; // tokenId => imageHash
+    mapping(uint256 => Receipt_) public receipts;   // tokenId => submitter + reward paid
+    mapping(uint256 => Challenge) public challenges;
+
+    /// @notice Forfeited bonds accumulate here and fund correct-challenge bounties.
+    uint256 public slashPool;
 
     uint8 public constant MIN_CONFIDENCE = 85;
     uint256 public constant AUDITOR_STAKE_REQUIRED = 100 ether;
-    uint8 public constant AUDIT_LOTTERY_PCT = 10; // 10% chance
+    uint256 public constant CHALLENGE_BOND = 50 ether;
+    uint8 public constant AUDIT_LOTTERY_PCT = 10; // 10% of receipts are audit-flagged
 
-    event ProofSubmitted(address indexed user, uint256 indexed tokenId, Material material, bytes32 imageHash, string ipfsCID);
-    event Challenged(uint256 indexed tokenId, address indexed auditor);
-    event Slashed(address indexed user, uint256 tokenId);
+    event ProofSubmitted(address indexed user, uint256 indexed tokenId, Material material, bytes32 imageHash, string ipfsCID, bool auditFlagged);
+    event Challenged(uint256 indexed tokenId, address indexed auditor, uint256 bond);
+    event ChallengeResolved(uint256 indexed tokenId, address indexed auditor, bool fraudulent);
+    event Slashed(address indexed offender, uint256 indexed tokenId, uint256 clawedBack);
     event AuditorStaked(address indexed auditor, uint256 amount);
     event AuditorWithdrawn(address indexed auditor, uint256 amount);
     event RewardUpdated(Material indexed material, uint256 oldReward, uint256 newReward);
@@ -40,12 +59,14 @@ contract ReClaim is Ownable, ReentrancyGuard {
     error NotStaked();
     error NoReceipt();
     error InsufficientStake();
+    error StakeLocked();
+    error AlreadyChallenged();
+    error NoOpenChallenge();
 
     constructor(address _token, address _receipt) Ownable(msg.sender) {
         if (_token == address(0) || _receipt == address(0)) revert ZeroAddress();
         token = ReClaimToken(_token);
         receipt = ReceiptNFT(_receipt);
-        // init rewards
         rewardTable[Material.PET] = 20 ether;
         rewardTable[Material.HDPE] = 20 ether;
         rewardTable[Material.Aluminum] = 50 ether;
@@ -60,24 +81,36 @@ contract ReClaim is Ownable, ReentrancyGuard {
         emit RewardUpdated(m, old, amount);
     }
 
-    function stakeAuditor() external {
+    /// @notice Deterministic, publicly verifiable audit selection derived from the
+    ///         image hash itself. Anyone can recompute it; nothing to trust.
+    /// ponytail: deterministic on imageHash, not VRF. A submitter can grind hashes
+    /// offline to dodge the flag — swap in Chainlink VRF when that grinding is worth
+    /// more than the reward it dodges.
+    function auditFlagged(bytes32 imageHash) public pure returns (bool) {
+        return uint256(imageHash) % 100 < AUDIT_LOTTERY_PCT;
+    }
+
+    function availableStake(address a) public view returns (uint256) {
+        return auditorStake[a] - lockedStake[a];
+    }
+
+    function stakeAuditor() external nonReentrant {
         if (token.balanceOf(msg.sender) < AUDITOR_STAKE_REQUIRED) revert InsufficientStake();
-        // requires prior approve
         bool ok = token.transferFrom(msg.sender, address(this), AUDITOR_STAKE_REQUIRED);
         require(ok, "Transfer failed");
         auditorStake[msg.sender] += AUDITOR_STAKE_REQUIRED;
         emit AuditorStaked(msg.sender, AUDITOR_STAKE_REQUIRED);
     }
 
-    function withdrawStake(uint256 amount) external {
-        if (auditorStake[msg.sender] < amount) revert InsufficientStake();
+    function withdrawStake(uint256 amount) external nonReentrant {
+        if (availableStake(msg.sender) < amount) revert StakeLocked();
         auditorStake[msg.sender] -= amount;
         bool ok = token.transfer(msg.sender, amount);
         require(ok, "Transfer failed");
         emit AuditorWithdrawn(msg.sender, amount);
     }
 
-    /// @notice Submit proof of recycling. Mints NFT + tokens if valid.
+    /// @notice Submit proof of recycling. Mints Receipt NFT + material-weighted tokens.
     function submitProof(
         uint8 material,
         uint8 confidence,
@@ -88,7 +121,7 @@ contract ReClaim is Ownable, ReentrancyGuard {
         if (imageHash == bytes32(0)) revert ZeroHash();
         if (confidence < MIN_CONFIDENCE) revert LowConfidence();
         if (usedImageHashes[imageHash]) revert DuplicateImage();
-        if (material > 5) revert InvalidMaterial();
+        if (material > uint8(Material.Organic)) revert InvalidMaterial();
         Material m = Material(material);
 
         usedImageHashes[imageHash] = true;
@@ -99,31 +132,55 @@ contract ReClaim is Ownable, ReentrancyGuard {
 
         uint256 reward = rewardTable[m];
         if (reward > 0) token.mint(msg.sender, reward);
+        receipts[tokenId] = Receipt_({ submitter: msg.sender, reward: uint96(reward) });
 
-        emit ProofSubmitted(msg.sender, tokenId, m, imageHash, ipfsCID);
-        // lottery logic: in production use Chainlink VRF. Here pseudo-random for MVP
-        // 10% deterministic mock: if hash %10 ==0 -> emit challenge opportunity
+        emit ProofSubmitted(msg.sender, tokenId, m, imageHash, ipfsCID, auditFlagged(imageHash));
     }
 
-    function challenge(uint256 tokenId) external {
+    /// @notice Bond stake against a receipt you believe is fraudulent.
+    function challenge(uint256 tokenId) external nonReentrant {
         if (auditorStake[msg.sender] < AUDITOR_STAKE_REQUIRED) revert NotStaked();
-        // ownerOf reverts if not exists, capture
-        try receipt.ownerOf(tokenId) returns (address) {
-        } catch {
-            revert NoReceipt();
-        }
-        emit Challenged(tokenId, msg.sender);
-        // DAO vote placeholder - owner can slash in MVP
+        if (availableStake(msg.sender) < CHALLENGE_BOND) revert InsufficientStake();
+        if (receipts[tokenId].submitter == address(0)) revert NoReceipt();
+        if (challenges[tokenId].open) revert AlreadyChallenged();
+
+        lockedStake[msg.sender] += CHALLENGE_BOND;
+        challenges[tokenId] = Challenge({ challenger: msg.sender, bond: uint96(CHALLENGE_BOND), open: true });
+        emit Challenged(tokenId, msg.sender, CHALLENGE_BOND);
     }
 
-    function slash(uint256 tokenId, address offender) external onlyOwner {
-        bytes32 h = receiptHash[tokenId];
-        if (h != bytes32(0)) {
-            // allow re-use of image hash after slash? Keep blocked to prevent replay of fraudulent image
-            // but clear receipt mapping
-            delete receiptHash[tokenId];
+    /// @notice Resolve an open challenge. Fraudulent => burn receipt, claw back the
+    ///         reward, pay the challenger a bounty. Not fraudulent => forfeit the bond.
+    /// ponytail: owner adjudicates in MVP. Swap for a token-weighted DAO vote when
+    /// there is a real token distribution to vote with.
+    function resolveChallenge(uint256 tokenId, bool fraudulent) external onlyOwner nonReentrant {
+        Challenge storage c = challenges[tokenId];
+        if (!c.open) revert NoOpenChallenge();
+
+        address challenger = c.challenger;
+        uint256 bond = c.bond;
+        c.open = false;
+        lockedStake[challenger] -= bond;
+
+        if (fraudulent) {
+            Receipt_ memory r = receipts[tokenId];
+            uint256 clawed = token.burnFrom(r.submitter, r.reward);
+
+            receipt.burn(tokenId);
+            delete receipts[tokenId];
+            // imageHash stays marked used, so the fraudulent image can never be replayed.
+
+            uint256 bounty = slashPool < bond ? slashPool : bond;
+            if (bounty > 0) {
+                slashPool -= bounty;
+                auditorStake[challenger] += bounty;
+            }
+            emit Slashed(r.submitter, tokenId, clawed);
+        } else {
+            // Wrong challenge: the bond is forfeited into the pool.
+            auditorStake[challenger] -= bond;
+            slashPool += bond;
         }
-        receipt.burn(tokenId);
-        emit Slashed(offender, tokenId);
+        emit ChallengeResolved(tokenId, challenger, fraudulent);
     }
 }
