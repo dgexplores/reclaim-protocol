@@ -201,54 +201,30 @@ Completed and verified:
 - **Cleanup.** Deleted dead `components/Scanner.tsx` (duplicate of the page, still shipping
   `alert()`) and the unused `lib/ipfs.ts`. Dropped the unused RainbowKit dependency.
 - **Bundle.** First load 202 kB, down from 535 kB, by lazy-loading TensorFlow.
+- **Hydration.** `Math.random()` and `new Date()` were being called inside JSX, so the server
+  and client disagreed and React threw on every load. Time values now populate after mount,
+  and the receipt's invoice number is derived from the real image hash instead of a random
+  number.
+- **CSP and model hosting.** Our own Content-Security-Policy was blocking `tfhub.dev`, so
+  the model never loaded. Rather than widen the policy, the MobileNet weights are now
+  self-hosted in `frontend/public/model` (14 MB). The demo no longer depends on venue wifi
+  reaching a third-party host, and `connect-src` stays tight. Verified: the self-hosted
+  model returns predictions identical to the remote one.
+- **Tailwind was never running.** `postcss.config.js` did not exist, so Next silently
+  skipped Tailwind and shipped 35 CSS rules instead of 363. The entire designed interface
+  was rendering as unstyled HTML. Added the config and pointed `content` at `./lib` instead
+  of the deleted `./components`.
+- **Docs.** All eleven supporting documents were corrected to match the code. They
+  previously carried "98% accuracy", "TrashNet", "custom 12k dataset", "Chainlink VRF",
+  "GPS clustering", and "RainbowKit", none of which the code supported.
 
 ### 9.2 Remaining work, in priority order
 
-**1. Fix the hydration mismatch. Pre-existing, roughly 10 minutes.**
+Steps 1 to 3 of the previous handoff are done. What follows is what is genuinely left.
 
-`Math.random()` and `new Date()` are called directly inside JSX, so the server HTML and the
-client render disagree and React throws on every page load. Offending lines in
-`frontend/app/page.tsx`:
+**1. Deploy to Base Sepolia. Requires a funded key, so this one is yours to run.**
 
-- line 252, `new Date().getFullYear()`
-- line 330, `new Date().toLocaleDateString("en-GB")`
-- line 331, `Math.floor(Math.random()*9000)` for the invoice number
-- line 369, `new Date().toLocaleTimeString()`
-
-Fix by moving each into `useState` seeded in a `useEffect`, or render a stable placeholder
-until mounted. The invoice number should be derived from the receipt tokenId once a real
-one exists, rather than being random at all.
-
-**2. Verify the classifier actually loads. Blocking, do this first after the fix above.**
-
-The Content-Security-Policy in `next.config.js` was blocking `tfhub.dev`, where the
-MobileNet weights are hosted, so the model never loaded and the page showed its honest
-"could not load the on-device classifier" error. `connect-src` has been widened to allow
-`tfhub.dev` and `storage.googleapis.com`, but **this has not been re-tested**. Until a real
-photo has been classified successfully, treat the end-to-end claim as written but unproven.
-
-To verify: `npm run dev --prefix frontend`, open the page, wait for the scan button to stop
-saying "Loading classifier", then upload a photo of a plastic bottle, an aluminium can, or a
-banana. Expect a material, a confidence figure, and the raw ImageNet class it matched.
-Expect a refusal on a photo of something that is not waste. Both outcomes are correct
-behaviour and worth showing a judge.
-
-**3. Correct the remaining docs. Roughly 40 minutes, highest credibility risk.**
-
-The README is now accurate. These nine files still carry the original overclaims, and a
-judge who reads them will find the same "98% accuracy", "TrashNet", "custom 12k dataset",
-"Chainlink VRF", and "RainbowKit" statements that the code does not support:
-
-`docs/PITCH_DECK.md`, `docs/ARCHITECTURE.md`, `docs/SOLUTION.md`, `docs/TEST_REPORT.md`,
-`docs/SECURITY.md`, `docs/SUBMISSION.md`, `docs/DEMO_GUIDE.md`, `PRODUCT.md`,
-`frontend/PRODUCT.md`.
-
-Use the "What is real, and what is not" table in section 4 as the source of truth. Also fix
-`docs/TEST_REPORT.md`, which reports the old 27-test run and a gas figure below 250k;
-`submitProof` now costs about 253.6k because of the clawback bookkeeping, which is still far
-under a cent on Base.
-
-**4. Deploy to Base Sepolia. Requires a funded key, so this one is yours to run.**
+This is the only thing standing between the repo and a live demo.
 
 ```bash
 cd contracts
@@ -263,17 +239,33 @@ effect rather than shipping a half-wired deployment, and prints both the
 ```bash
 cd frontend
 cp .env.example .env.local    # set NEXT_PUBLIC_CONTRACT_ADDRESS and LIGHTHOUSE_API_KEY
+npm run dev
 ```
 
 Without a contract address the app still runs and says so plainly instead of faking a mint.
 Without a Lighthouse key it refuses to pin rather than inventing a CID.
 
-**5. Optional, only after 1 to 4 are done.**
+**2. Confirm a positive classification on a real photograph.**
 
-GPS clustering as an anti-gaming signal is currently claimed nowhere and implemented
-nowhere, which is consistent. If you want it back as a differentiator, it needs a
-`bytes8 geohash` parameter on `submitProof`, a per-geohash daily cap, and updates to every
-test. Do not re-add the claim to the docs without the code.
+The classifier is verified working: MobileNet v2 loads from local weights in about 6 seconds
+with no external network, and returns real ImageNet predictions. The refusal path was
+confirmed on synthetic test images (the model answered "spotlight" and "umbrella", and the
+app correctly declined both). What has **not** been exercised is a successful match, because
+that needs a real photo of real waste, which synthetic canvas drawings cannot stand in for.
+
+Point the camera at a plastic bottle, an aluminium can, or a banana. Expect a material, a
+confidence figure, and the raw ImageNet class it matched. If real objects refuse more often
+than you like, widen the map in `frontend/lib/classify.ts`; the map, not the model, is the
+part worth tuning.
+
+**3. Record the demo video.** Not started.
+
+**4. Optional, only after the above.**
+
+GPS clustering as an anti-gaming signal is now claimed nowhere and implemented nowhere,
+which is consistent. If you want it back as a differentiator, it needs a `bytes8 geohash`
+parameter on `submitProof`, a per-geohash daily cap, and updates to every test. Do not
+re-add the claim to the docs without the code.
 
 ### 9.3 Known limitations worth stating out loud to a judge
 

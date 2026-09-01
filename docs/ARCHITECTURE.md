@@ -10,8 +10,7 @@ flowchart LR
   ProofGen -->|submitProof| Contract[ReClaim.sol<br/>Base Sepolia]
   Contract -->|mint| NFT[ReceiptNFT ERC721]
   Contract -->|mint| Token[$RECLAIM ERC20]
-  Contract -->|10% lottery| VRF[Chainlink VRF]
-  VRF -->|pick| Auditor[Staked Auditor]
+  Contract -->|10% audit flag, deterministic on imageHash| Auditor[Staked Auditor]
   Auditor -->|challenge?| DAO[DAO Vote]
   Token -->|redeem/swap| Partner[Partner Discount API<br/>/ DEX]
 ```
@@ -36,16 +35,17 @@ flowchart LR
 ## AI Pipeline
 
 - Base: MobileNetV2 224x224, TensorFlow.js
-- Fine-tune: TrashNet (2,527 images) + 12k scraped OpenLitterMap, augmentation (rotate, blur)
-- Classes: 6, accuracy 92% top-1, 98% top-2 on validation
+- No fine-tune. Stock MobileNet v2 ImageNet weights, run in the browser
+- ImageNet classes are mapped onto 6 materials by a curated label map in `frontend/lib/classify.ts`
+- Accuracy on real waste is bounded by what ImageNet already knows. Unmapped or sub-85% predictions are refused, not guessed
 - Threshold: <85 confidence → reject, suggest retake
 - Runs on-device, no image leaves phone before hash (privacy)
 
 ## Frontend
 
 - Next.js 14 App Router, TypeScript
-- wagmi v2 + viem + RainbowKit for wallet
-- `components/Scanner.tsx` — camera + TFLite inference
+- wagmi v2 + viem, injected wallet connector
+- `app/page.tsx` (camera + UI), `lib/classify.ts` (MobileNet), `lib/proof.ts` (keccak256 + pinning)
 - `lib/ipfs.ts` — Lighthouse upload
 - `lib/contract.ts` — viem write calls
 
@@ -53,8 +53,8 @@ flowchart LR
 
 - ReentrancyGuard on mint
 - Image hash prevents duplicate across users
-- GPS not stored raw, only geohash(4) for clustering
-- Auditor must stake 100 $RECLAIM, slashed if false challenge
+- No location data is collected. GPS clustering is not implemented
+- Auditor stakes 100 $RECLAIM and bonds 50 per challenge. A wrong challenge forfeits the bond to `slashPool`. A correct one burns the receipt and claws the reward back
 
 ## Gas
 

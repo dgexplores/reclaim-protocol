@@ -5,7 +5,7 @@
 ### 1. Learning (Tech Depth)
 - Solves *physical oracle problem* — not price feed, but waste proof (unsolved)
 - On-device TFLite + IPFS content addressing + EVM L2 + staking — full stack
-- 27 tests + integration + gas snapshots demonstrate mastery
+- 34 tests + integration + gas snapshots demonstrate mastery
 
 ### 2. Design
 - One-tap scan, <5s to mint, dark premium UI (not template), mobile-first
@@ -15,7 +15,7 @@
 ### 3. Creativity
 - No hardware bins ($500 each). Phone-as-oracle = DePIN without capex
 - Material-weighted tokenomics (E-Waste 10x Organic) — reflects real environmental economics
-- First Trash-to-Token with anti-gaming quartet: hash dedup + confidence + GPS clustering + VRF auditor lottery
+- First Trash-to-Token where the anti-gaming mechanisms are actually in the contract: image-hash dedup, an 85% confidence floor enforced in Solidity, and auditor bonds that are genuinely slashed. Audit selection is deterministic on the image hash and recomputable by anyone, so there is no oracle to trust
 
 ### 4. Functionality
 - Working MVP: contracts verified, frontend builds 89kB, deploy script tested, integration test passes

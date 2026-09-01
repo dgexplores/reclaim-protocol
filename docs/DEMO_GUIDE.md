@@ -10,7 +10,7 @@ Record 90-120s:
 0:00-0:15 Problem (landfill stats)
 0:15-0:45 Scan aluminum can → AI says "Aluminum 94%" → submit tx → show Basescan tx
 0:45-1:15 Show Receipt NFT in wallet + $RECLAIM balance + IPFS CID resolve
-1:15-1:30 Auditor view + redeem mock
+1:15-1:30 Auditor challenge and slashing walkthrough
 Export 1080p, upload to YouTube unlisted + Loom, link here.
 
 ## How to Run Locally
@@ -40,7 +40,7 @@ npm run dev
 - Or print QR from docs/samples.pdf and scan
 
 ## What Judges Will See
-- Wallet connect (RainbowKit)
+- Wallet connect (injected connector, e.g. MetaMask)
 - Scanner with live confidence
 - On-chain tx hash + Etherscan link
 - NFT metadata on OpenSea testnet
@@ -48,7 +48,7 @@ npm run dev
 
 ## Troubleshooting
 - Camera not working → use file upload fallback
-- VRF not configured on localhost → lottery mocked to 0% in dev
+- Audit flagging is deterministic on the image hash, so it works identically on localhost and testnet. No oracle setup needed
 - IPFS fail → fallback to local hash log
 
 ## Submission Links Template

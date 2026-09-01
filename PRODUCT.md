@@ -15,15 +15,15 @@ Primary: hackathon judges + Web3-curious citizens 18-35, scanning household wast
 ReClaim proves real-world recycling without hardware. Phone camera + on-device AI classifies material, hashes + IPFS pins the proof, Base L2 mints a Receipt NFT + material-weighted $RECLAIM. Success = judge scans real trash live, sees confidence, gets tx hash and NFT in under 10s, believes this solves the physical oracle problem for waste.
 
 ## Positioning
-Phone-as-oracle DePIN for waste. No smart bins ($500 each), no manual audit. First Proof-of-Recycling with anti-gaming quartet: image-hash dedup, confidence threshold, GPS clustering, staked auditor lottery via VRF. Every phone becomes a validator. A database clone cannot copy the on-chain receipt composability (reputation, governance, DeFi).
+Phone-as-oracle DePIN for waste. No smart bins ($500 each), no manual audit. First Proof-of-Recycling with three anti-gaming mechanisms that exist in the contract: image-hash dedup, an 85% confidence floor, and staked auditors with real bond slashing. Audit selection is deterministic on the image hash, not a VRF. GPS clustering is not implemented. Every phone becomes a validator. A database clone cannot copy the on-chain receipt composability (reputation, governance, DeFi).
 
 ## Operating Context
 Used on mobile browser, often in daylight/kitchen/campus, one-handed. Needs camera permission (secure context), file fallback. Evaluated on testnet with faucet, scanned via BaseScan. Compared against RecycleBank, manual audits, NFT eco-art. Winning requires demonstrable verification, not claims.
 
 ## Capabilities and Constraints
-- Must: camera scan → classify 6 materials (PET/HDPE/Aluminum/Glass/E-Waste/Organic) 88-98% confidence, IPFS CID, image hash, submitProof(uint8, uint8, string, bytes32) on Base Sepolia, mint NFT+ERC20, show tx.
+- Must: camera scan → classify 6 materials (PET/HDPE/Aluminum/Glass/E-Waste/Organic) model confidence, refused below 85%, IPFS CID, image hash, submitProof(uint8, uint8, string, bytes32) on Base Sepolia, mint NFT+ERC20, show tx.
 - Must: duplicate hash revert, low confidence (<85) revert, invalid material revert, zero-address checks, auditor staking.
-- Stack constraint: keep gas <250k (~$0.01), IPFS via Lighthouse, TensorFlow.js mock acceptable for MVP with swap to real model.
+- Stack constraint: keep gas under 260k (~$0.01), IPFS via Lighthouse pinned server-side, real TensorFlow.js MobileNet v2 on device.
 - Terminology: material, confidence, CID, imageHash, Receipt NFT, $RECLAIM.
 - Undecided: final reward weights (governance), mainnet chain, native app vs PWA.
 
@@ -31,8 +31,8 @@ Used on mobile browser, often in daylight/kitchen/campus, one-handed. Needs came
 Name: ReClaim Protocol. Voice: precise, physical, optimistic — waste as resource. No existing logo, no palette locked; new world should feel tactile (trash texture, craft), not AI slop. Must not look generic. Emil Kowalski influence approved: polished micro-interactions, physics, intent.
 
 ## Evidence on Hand
-- Working contracts: ReClaim.sol, ReClaimToken.sol, ReceiptNFT.sol, 27 tests passing, integration script, deploy script verified on Base Sepolia.
-- Frontend: Next.js build 89kB, Scanner component (mock classify), BaseScan link.
+- Working contracts: ReClaim.sol, ReClaimToken.sol, ReceiptNFT.sol, 34 tests passing, integration script, deploy script that asserts its own minter wiring.
+- Frontend: Next.js build, 202kB first load, real on-device classification, real IPFS pin, real on-chain mint, BaseScan link.
 - Docs: PROBLEM_STATEMENT, SOLUTION, ARCHITECTURE (mermaid), PITCH_DECK 10 slides, DEMO_GUIDE, SECURITY checklist, TEST_REPORT.
 - No real user data; all demo synthetic, must label as such.
 

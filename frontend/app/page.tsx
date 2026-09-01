@@ -34,6 +34,7 @@ export default function Home() {
   const [isSwapping, setIsSwapping] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [successDrawn, setSuccessDrawn] = useState(false);
+  const [now, setNow] = useState<Date | null>(null); // null on the server, so SSR and client agree
 
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors } = useConnect();
@@ -41,6 +42,8 @@ export default function Home() {
   const { switchChain } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+
+  useEffect(() => setNow(new Date()), []);
 
   // Warm the classifier up front so the first scan is not the slow one.
   useEffect(() => {
@@ -255,7 +258,7 @@ export default function Home() {
       <div className="w-full border-b border-rule bg-paperDeep">
         <div className="max-w-[1160px] mx-auto px-5 md:px-6 py-[10px] flex items-center justify-between text-[11px] leading-none tracking-[0.08em] font-mono text-inkMuted uppercase">
           <span className="flex items-center gap-3"><span className="hidden sm:inline">RECLAIM PROTOCOL</span><span className="sm:hidden">RECLAIM</span><span className="h-3 w-px bg-ruleDark hidden sm:block" /><span>EST. 2026 • BASE SEPOLIA</span></span>
-          <span className="flex items-center gap-3"><span className="hidden md:inline">INV — #{new Date().getFullYear()}—0419</span><span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-verified animate-pulse" /> SYSTEM LIVE</span></span>
+          <span className="flex items-center gap-3"><span className="hidden md:inline">INV · #{now?.getFullYear() ?? "––––"}·0419</span><span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-verified animate-pulse" /> SYSTEM LIVE</span></span>
         </div>
         <div className="perforation opacity-60" />
       </div>
@@ -333,8 +336,8 @@ export default function Home() {
                     <p className="font-mono text-[11px] text-inkMuted mt-1">THERMAL RECEIPT — PROOF OF RECYCLING</p>
                   </div>
                   <div className="hidden sm:block text-right">
-                    <p className="font-mono text-[11px] tracking-[0.06em]">{new Date().toLocaleDateString("en-GB")}</p>
-                    <p className="font-mono text-[11px] text-inkMuted">#{Math.floor(Math.random()*9000)+1000}-{Math.floor(Math.random()*900)+100}</p>
+                    <p className="font-mono text-[11px] tracking-[0.06em]">{now?.toLocaleDateString("en-GB") ?? "––/––/––––"}</p>
+                    <p className="font-mono text-[11px] text-inkMuted">#{hash ? `${hash.slice(2, 6)}-${hash.slice(6, 9)}`.toUpperCase() : "––––-–––"}</p>
                   </div>
                 </div>
                 <div className="h-px bg-rule mx-5 md:mx-7" />
@@ -372,7 +375,7 @@ export default function Home() {
                     <div className={`rounded-full border-[2.5px] px-3 py-1.5 font-mono text-[11px] font-medium tracking-[0.12em] uppercase bg-white ${result.confidence >= 85 ? "border-verified text-verified" : "border-scanner text-scanner"} ${printing ? "animate-stamp" : ""}`}>
                       {result.confidence >= 85 ? "✓ VERIFIED" : "LOW CONFIDENCE"}
                     </div>
-                    <p className="mt-1 text-center font-mono text-[8px] tracking-[0.1em] uppercase text-inkMuted">Base Sepolia • {new Date().toLocaleTimeString()}</p>
+                    <p className="mt-1 text-center font-mono text-[8px] tracking-[0.1em] uppercase text-inkMuted">Base Sepolia • {now?.toLocaleTimeString() ?? "––:––:––"}</p>
                   </div>
                 )}
                 <div className="perforation rotate-180 opacity-60" />

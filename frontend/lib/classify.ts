@@ -44,10 +44,12 @@ let modelPromise: Promise<mobilenet.MobileNet> | null = null;
 export function loadModel() {
   if (!modelPromise) {
     // Dynamic so the ~330kB of TensorFlow stays out of the first paint.
+    // Weights are self-hosted from /public/model. Loading them from tfhub.dev at
+    // runtime means the demo dies on bad venue wifi, and it needs a CSP hole.
     modelPromise = (async () => {
       const [tf, mn] = await Promise.all([import("@tensorflow/tfjs"), import("@tensorflow-models/mobilenet")]);
       await tf.ready();
-      return mn.load({ version: 2, alpha: 1.0 });
+      return mn.load({ version: 2, alpha: 1.0, modelUrl: "/model/model.json" });
     })();
   }
   return modelPromise;

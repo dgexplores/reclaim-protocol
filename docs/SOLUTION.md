@@ -12,7 +12,7 @@
 5. **Instant Mint (if confidence > 85 and no duplicate hash):** 
    - `ReceiptNFT` (ERC-721) minted to user with metadata: material, CID, location, timestamp
    - `$RECLAIM` (ERC-20) minted: reward table below
-6. **Auditor Lottery (10%):** Chainlink VRF picks random staked auditor. Auditor has 24h to challenge. If challenged, DAO votes. False claims slash submitter, reward auditor. If not challenged, receipt finalizes.
+6. **Auditor Challenge (10% flagged):** `auditFlagged(imageHash)` marks about 10% of receipts, deterministically and recomputable by anyone. A staked auditor bonds 50 $RECLAIM to challenge one. A correct challenge burns the receipt and claws the reward back via `burnFrom`; a wrong one forfeits the bond. Adjudication is owner-only in this MVP, a placeholder for a token-weighted vote.
 7. **Redeem:** Tokens used for partner discounts, swapped on DEX, or staked for governance weight.
 
 ## Reward Table (Material-Weighted)
@@ -33,7 +33,6 @@ Governance can update weights.
 - **No hardware:** Pure phone, unlike smart bins ($500 each)
 - **Anti-gaming stack:** 
   - Image hash dedup (keccak on-chain)
-  - GPS clustering (flag 50 submissions same location in 1h)
   - Confidence threshold
   - Staked auditors with slashing
 - **Composability:** Receipt NFTs = on-chain reputation; $RECLAIM = ERC-20 liquid

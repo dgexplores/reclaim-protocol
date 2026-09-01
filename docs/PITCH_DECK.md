@@ -38,14 +38,14 @@ Phone → AI classify → IPFS → Mint Receipt NFT + $RECLAIM
 
 ### Slide 7: Unique Tech
 - Proof-of-Recycling (not PoW)
-- Anti-gaming: hash dedup, GPS clustering, staked auditors + Chainlink VRF lottery
+- Anti-gaming: on-chain image-hash dedup, an 85% confidence floor enforced in Solidity, and staked auditors whose bonds are slashed on a wrong challenge. Audit selection is deterministic on the image hash and publicly recomputable, not a VRF
 - On-device AI, privacy-preserving
 
 ### Slide 8: Traction (Even as MVP)
 - Contracts deployed Base Sepolia, verified
 - 12 tests passing, gas <$0.01
 - Frontend classifies live, IPFS working
-- 10 test users, 200+ mock receipts
+- No pilot has run yet. 34 contract tests pass and the scan to mint path works end to end on testnet
 
 ### Slide 9: Business / Impact
 - Go-to-market: partner with 1 university campus (pilot), then municipality

@@ -21,9 +21,9 @@ Phone camera + on-device AI classifies trash → IPFS hash + Base L2 smart contr
 
 ## Technology Stack
 - **Blockchain/Network:** Base Sepolia (EVM L2)
-- **Protocols:** OpenZeppelin ERC-721/ERC-20, IPFS (Lighthouse), Chainlink VRF (auditor lottery, mocked in MVP), TensorFlow.js MobileNetV2
-- **Tools/Frameworks:** Solidity 0.8.24, Hardhat, Next.js 14 + TypeScript, wagmi/viem + RainbowKit, TailwindCSS
-- **Datasets:** TrashNet + OpenLitterMap (12k images, credited)
+- **Protocols:** OpenZeppelin ERC-721/ERC-20, IPFS (Lighthouse), TensorFlow.js MobileNet v2 (stock ImageNet weights, on device). No Chainlink dependency
+- **Tools/Frameworks:** Solidity 0.8.24, Hardhat, Next.js 14 + TypeScript, wagmi/viem with an injected connector, TailwindCSS
+- **Datasets:** None. The classifier runs stock ImageNet weights with a hand-written class-to-material map
 
 ## Setup & Usage (Copy-paste for judges)
 
@@ -50,7 +50,7 @@ See `docs/PITCH_DECK.md` (10 slides) — export to PDF for Devpost upload.
 ## Additional Competitive Docs (Optional but Strong)
 - `docs/ARCHITECTURE.md` — mermaid + AI pipeline + gas
 - `docs/SECURITY.md` — pre-audit checklist
-- `docs/TEST_REPORT.md` — 27 tests + integration + gas
+- `docs/TEST_REPORT.md`, 34 tests + integration + gas
 - `docs/COMPETITIVE_EDGE.md` — judging criteria mapping
 - `verify.sh` — one-command rebuild verification
 
