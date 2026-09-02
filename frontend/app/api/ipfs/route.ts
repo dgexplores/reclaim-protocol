@@ -5,13 +5,47 @@ export const runtime = "nodejs";
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
- * Pins a proof image to IPFS via Lighthouse. The API key stays server-side.
+ * Pins a proof image to IPFS. Keys stay server-side.
+ *
+ * Two providers because reachability varies by network: Lighthouse is blocked
+ * outright on some ISPs (observed on the dev machine, DNS resolves but the
+ * connection never opens), while Pinata is reachable. Whichever is configured
+ * wins, Pinata first.
  */
+async function pinToPinata(file: File, jwt: string) {
+  const form = new FormData();
+  form.append("file", file, "proof.jpg");
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jwt}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Pinata rejected the upload (${res.status})`);
+  const data = await res.json();
+  if (!data?.IpfsHash) throw new Error("Pinata returned no CID");
+  return data.IpfsHash as string;
+}
+
+async function pinToLighthouse(file: File, key: string) {
+  const form = new FormData();
+  form.append("file", file, "proof.jpg");
+  const res = await fetch("https://node.lighthouse.storage/api/v0/add", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Lighthouse rejected the upload (${res.status})`);
+  const data = await res.json();
+  if (!data?.Hash) throw new Error("Lighthouse returned no CID");
+  return data.Hash as string;
+}
+
 export async function POST(req: NextRequest) {
-  const key = process.env.LIGHTHOUSE_API_KEY;
-  if (!key) {
+  const pinataJwt = process.env.PINATA_JWT;
+  const lighthouseKey = process.env.LIGHTHOUSE_API_KEY;
+  if (!pinataJwt && !lighthouseKey) {
     return NextResponse.json(
-      { error: "IPFS pinning is not configured. Set LIGHTHOUSE_API_KEY.", code: "IPFS_UNCONFIGURED" },
+      { error: "IPFS pinning is not configured. Set PINATA_JWT or LIGHTHOUSE_API_KEY.", code: "IPFS_UNCONFIGURED" },
       { status: 503 }
     );
   }
@@ -28,24 +62,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Only images can be pinned", code: "BAD_TYPE" }, { status: 415 });
   }
 
-  const upstream = new FormData();
-  upstream.append("file", file, "proof.jpg");
+  const attempts: Array<[string, () => Promise<string>]> = [];
+  if (pinataJwt) attempts.push(["Pinata", () => pinToPinata(file, pinataJwt)]);
+  if (lighthouseKey) attempts.push(["Lighthouse", () => pinToLighthouse(file, lighthouseKey)]);
 
-  try {
-    const res = await fetch("https://node.lighthouse.storage/api/v0/add", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}` },
-      body: upstream,
-    });
-    if (!res.ok) {
-      return NextResponse.json({ error: `Lighthouse rejected the upload (${res.status})`, code: "UPSTREAM" }, { status: 502 });
+  const failures: string[] = [];
+  for (const [name, run] of attempts) {
+    try {
+      const cid = await run();
+      return NextResponse.json({ cid, provider: name });
+    } catch (e: any) {
+      failures.push(`${name}: ${e?.message || "unreachable"}`);
     }
-    const data = await res.json();
-    if (!data?.Hash) {
-      return NextResponse.json({ error: "Lighthouse returned no CID", code: "NO_CID" }, { status: 502 });
-    }
-    return NextResponse.json({ cid: data.Hash as string });
-  } catch {
-    return NextResponse.json({ error: "Could not reach the IPFS node", code: "NETWORK" }, { status: 502 });
   }
+  return NextResponse.json(
+    { error: `Could not pin the proof. ${failures.join("; ")}`, code: "PIN_FAILED" },
+    { status: 502 }
+  );
 }

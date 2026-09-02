@@ -8,6 +8,8 @@ import { RECLAIM_ABI, CONTRACT_ADDRESS } from "@/lib/contract";
 
 type Result = Material & { confidence: number; rawClass: string };
 
+const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.io/ipfs/";
+
 // Presentation only. The material list itself lives with the classifier.
 const TINT: Record<number, string> = {
   0: "bg-[#F3F3F0] border-[#E5E2DA] text-inkMuted",
@@ -349,7 +351,7 @@ export default function Home() {
                   {cid && (
                     <>
                       <div className="mt-3 space-y-1 text-[11px] leading-4">
-                        <div className="flex gap-2"><span className="text-inkMuted shrink-0">CID</span><span className="truncate text-ink">{cid}</span></div>
+                        <div className="flex gap-2"><span className="text-inkMuted shrink-0">CID</span><a href={`${IPFS_GATEWAY}${cid}`} target="_blank" rel="noreferrer" className="truncate text-ink underline decoration-rule underline-offset-2 hover:decoration-ink">{cid}</a></div>
                         <div className="flex gap-2"><span className="text-inkMuted shrink-0">HASH</span><span className="truncate text-ink">{hash?.slice(0, 34)}…</span></div>
                         {tx && <div className="flex gap-2"><span className="text-inkMuted shrink-0">TX</span><a href={`https://sepolia.basescan.org/tx/${tx}`} target="_blank" className="truncate underline decoration-ruleDark underline-offset-2 hover:decoration-ink">{tx.slice(0, 32)}…</a></div>}
                       </div>
@@ -523,7 +525,7 @@ export default function Home() {
                     <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[11px]">
                       <span className="rounded-[10px] border border-rule bg-white px-2.5 py-2"><span className="block text-inkMuted leading-none">MATERIAL</span><span className="block font-medium text-ink mt-1">{result.label}</span></span>
                       <span className="rounded-[10px] border border-rule bg-white px-2.5 py-2"><span className="block text-inkMuted leading-none">REWARD</span><span className="block font-medium text-ink mt-1">{result.reward} RECLAIM</span></span>
-                      <span className="rounded-[10px] border border-rule bg-white px-2.5 py-2"><span className="block text-inkMuted leading-none">CID</span><span className="block font-medium truncate text-ink mt-1">{cid.slice(0, 12)}…</span></span>
+                      <span className="rounded-[10px] border border-rule bg-white px-2.5 py-2"><span className="block text-inkMuted leading-none">CID</span><a href={`${IPFS_GATEWAY}${cid}`} target="_blank" rel="noreferrer" className="block font-medium truncate text-ink mt-1 underline decoration-rule underline-offset-2 hover:decoration-ink">{cid.slice(0, 12)}…</a></span>
                     </div>
                     <button
                       onClick={submitProof}

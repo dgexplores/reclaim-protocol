@@ -70,7 +70,7 @@ cd ../frontend && npm run dev
 |-------|------|
 | **Blockchain** | Base Sepolia (EVM L2), Solidity 0.8.24, OpenZeppelin |
 | **Tokens** | ERC-721 Receipt NFT + ERC-20 $RECLAIM, minted only by the ReClaim contract |
-| **Storage** | IPFS via Lighthouse, pinned server-side; `keccak256` of the pinned bytes stored on-chain |
+| **Storage** | IPFS via Pinata (Lighthouse supported as fallback), pinned server-side; `keccak256` of the pinned bytes stored on-chain |
 | **AI** | TensorFlow.js MobileNet v2, stock ImageNet weights, run in the browser. Curated ImageNet-class to material map |
 | **Audit selection** | Deterministic and publicly recomputable from the image hash. No external oracle |
 | **Frontend** | Next.js 14 (App Router), TypeScript, TailwindCSS, wagmi + viem, injected wallet connector |
@@ -85,7 +85,7 @@ Judges should not have to grep for this, so here it is plainly.
 | On-device classification | **Real.** MobileNet v2 runs in your browser. No network call, no server inference |
 | Fine-tuned waste model | **Not built.** We use stock ImageNet weights plus a curated label map. A fine-tune on TrashNet is future scope, and the accuracy of the current map is bounded by what ImageNet already knows |
 | Image hash | **Real.** `keccak256` over the exact bytes pinned to IPFS |
-| IPFS pinning | **Real** when `LIGHTHOUSE_API_KEY` is set. Without it the app says so and refuses to mint, rather than inventing a CID |
+| IPFS pinning | **Real** when `PINATA_JWT` or `LIGHTHOUSE_API_KEY` is set. Without a working provider the app names the failure and refuses to mint, rather than inventing a CID |
 | On-chain mint | **Real.** A tx hash only exists if Base Sepolia produced one |
 | Duplicate rejection, confidence floor | **Real,** enforced in Solidity and covered by tests |
 | Auditor staking and slashing | **Real.** Bonds lock, wrong challenges forfeit, fraudulent receipts get burned and the reward clawed back |
@@ -225,14 +225,22 @@ Completed and verified:
 
 Steps 1 to 3 of the previous handoff are done. What follows is what is genuinely left.
 
-**1. Add a Lighthouse API key. This is the only thing blocking a live mint.**
+**1. Add a Pinata JWT. This is the only thing blocking a live mint.**
 
-The contracts are deployed and the frontend is pointed at them, but without an IPFS key
-the app refuses to pin, and `submitProof` requires a non-empty CID. Get a free key at
-https://files.lighthouse.storage and put it in `frontend/.env.local`:
+The contracts are deployed and the frontend points at them, but `submitProof` requires a
+non-empty CID and the app refuses to invent one, so pinning has to work before anything
+mints.
+
+Use Pinata, not Lighthouse. `node.lighthouse.storage` is blocked on the development
+network: DNS resolves but the TCP connection never opens, while Base and Pinata are both
+reachable from the same machine. The route supports either and tries Pinata first, so a
+Lighthouse key still works anywhere it is reachable.
+
+Get a free JWT at https://app.pinata.cloud (API Keys, New Key, copy the JWT) and put it in
+`frontend/.env.local`:
 
 ```
-LIGHTHOUSE_API_KEY=your_key_here
+PINATA_JWT=your_jwt_here
 ```
 
 No `NEXT_PUBLIC_` prefix. That prefix is what leaked the key to the browser before.
