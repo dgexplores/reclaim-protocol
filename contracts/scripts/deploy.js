@@ -31,10 +31,15 @@ async function main() {
   await (await nft.setMinter(reclaimAddr)).wait();
   console.log("Minters set.");
 
-  // Fail loudly rather than shipping a half-wired deployment.
-  if ((await token.minter()) !== reclaimAddr || (await nft.minter()) !== reclaimAddr) {
-    throw new Error("Minter wiring failed. Do not use this deployment.");
+  // Fail loudly rather than shipping a half-wired deployment. Public RPCs are
+  // load balanced, so a read straight after wait() can hit a node that has not
+  // caught up yet. Retry before believing it.
+  let wired = false;
+  for (let i = 0; i < 6 && !wired; i++) {
+    wired = (await token.minter()) === reclaimAddr && (await nft.minter()) === reclaimAddr;
+    if (!wired) await new Promise((r) => setTimeout(r, 3000));
   }
+  if (!wired) throw new Error("Minter wiring failed. Do not use this deployment.");
 
   const out = {
     network: net,

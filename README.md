@@ -4,7 +4,7 @@
 > **Hackathon:** Web3 Unsolved Challenges Hackathon 2026  
 > **Track:** Real-World Impact / Sustainability / DePIN + AI  
 > **Team:** ReClaim (1-4 members)  
-> **Status:** Working MVP. Scan, classify, pin, and mint run end to end on Base Sepolia.
+> **Status:** Deployed on Base Sepolia. Contracts live and verified working on-chain. Scan and classify run on device; minting needs an IPFS key, see section 9.2.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Network: Base Sepolia](https://img.shields.io/badge/Network-Base%20Sepolia-blue)
@@ -47,7 +47,10 @@ Existing solutions are centralized databases (RecycleBank, etc.) or manual audit
 
 - **Live Demo:** `https://reclaim-protocol.vercel.app` (deploy after hackathon)
 - **Video:** `docs/demo-video-link.md` (1-2 min pitch + screen capture)
-- **Testnet:** Base Sepolia. Addresses are written to `contracts/deployments.json` by the deploy script
+- **Testnet:** live on Base Sepolia (chain 84532). Addresses also in `contracts/deployments.json`.
+  - ReClaim: [`0xb94e49223B0d5A0cfC9b60d1646fCdd613a1AC05`](https://sepolia.basescan.org/address/0xb94e49223B0d5A0cfC9b60d1646fCdd613a1AC05)
+  - ReClaimToken: [`0x6ED5dbFEB60aFeBdA27ba8847085fEB53C34c182`](https://sepolia.basescan.org/address/0x6ED5dbFEB60aFeBdA27ba8847085fEB53C34c182)
+  - ReceiptNFT: [`0xd4ff647376a9cF5c22E85351FeC6BBa3c66FAb68`](https://sepolia.basescan.org/address/0xd4ff647376a9cF5c22E85351FeC6BBa3c66FAb68)
 - **GitHub:** `https://github.com/dgexplores/reclaim-protocol`
 - **Quick Start:** See [Demo Guide](docs/DEMO_GUIDE.md)
 
@@ -222,28 +225,26 @@ Completed and verified:
 
 Steps 1 to 3 of the previous handoff are done. What follows is what is genuinely left.
 
-**1. Deploy to Base Sepolia. Requires a funded key, so this one is yours to run.**
+**1. Add a Lighthouse API key. This is the only thing blocking a live mint.**
 
-This is the only thing standing between the repo and a live demo.
+The contracts are deployed and the frontend is pointed at them, but without an IPFS key
+the app refuses to pin, and `submitProof` requires a non-empty CID. Get a free key at
+https://files.lighthouse.storage and put it in `frontend/.env.local`:
+
+```
+LIGHTHOUSE_API_KEY=your_key_here
+```
+
+No `NEXT_PUBLIC_` prefix. That prefix is what leaked the key to the browser before.
+
+**1b. Optional: verify the source on BaseScan** so judges can read the code on-chain.
+Needs a free key from https://etherscan.io/apis in `contracts/.env` as `BASESCAN_API_KEY`,
+then:
 
 ```bash
 cd contracts
-cp .env.example .env          # set PRIVATE_KEY and BASE_SEPOLIA_RPC
-npx hardhat run scripts/deploy.js --network baseSepolia
+npx hardhat verify --network baseSepolia 0xb94e49223B0d5A0cfC9b60d1646fCdd613a1AC05 0x6ED5dbFEB60aFeBdA27ba8847085fEB53C34c182 0xd4ff647376a9cF5c22E85351FeC6BBa3c66FAb68
 ```
-
-The script writes `contracts/deployments.json`, asserts the minter wiring actually took
-effect rather than shipping a half-wired deployment, and prints both the
-`NEXT_PUBLIC_CONTRACT_ADDRESS` line and the `hardhat verify` command. Then:
-
-```bash
-cd frontend
-cp .env.example .env.local    # set NEXT_PUBLIC_CONTRACT_ADDRESS and LIGHTHOUSE_API_KEY
-npm run dev
-```
-
-Without a contract address the app still runs and says so plainly instead of faking a mint.
-Without a Lighthouse key it refuses to pin rather than inventing a CID.
 
 **2. Confirm a positive classification on a real photograph.**
 
