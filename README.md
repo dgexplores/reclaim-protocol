@@ -46,6 +46,10 @@ Existing solutions are centralized databases (RecycleBank, etc.) or manual audit
 ## 3. Demo
 
 - **Live Demo:** `https://reclaim-protocol.vercel.app` (deploy after hackathon)
+- **First minted receipt (real, on-chain):** [tx `0xe48c33c5…deaabe`](https://sepolia.basescan.org/tx/0xe48c33c590a5fff70eca9db9d18d495f289e7d5e00b72de329b3db8419deaabe)
+  mints Receipt NFT #0 with `tokenURI = ipfs://QmYLH36w1G121xxZF5BRHewu3aTK6i7Rn7xZMqrHu3x95i`
+  and pays 20 $RECLAIM. The pinned bytes are fetchable from any IPFS gateway, and their
+  `keccak256` equals the `imageHash` stored on-chain, which is the whole verification claim.
 - **Video:** `docs/demo-video-link.md` (1-2 min pitch + screen capture)
 - **Testnet:** live on Base Sepolia (chain 84532). Addresses also in `contracts/deployments.json`.
   - ReClaim: [`0xb94e49223B0d5A0cfC9b60d1646fCdd613a1AC05`](https://sepolia.basescan.org/address/0xb94e49223B0d5A0cfC9b60d1646fCdd613a1AC05)
@@ -225,25 +229,18 @@ Completed and verified:
 
 Steps 1 to 3 of the previous handoff are done. What follows is what is genuinely left.
 
-**1. Add a Pinata JWT. This is the only thing blocking a live mint.**
+**1. Point the camera at real waste.**
 
-The contracts are deployed and the frontend points at them, but `submitProof` requires a
-non-empty CID and the app refuses to invent one, so pinning has to work before anything
-mints.
+Everything else is done and proven on-chain. The one path never exercised end to end is a
+*successful* classification, because it needs a real photograph. Synthetic test images
+classify as "spotlight" and "umbrella", and the app correctly refuses them.
 
-Use Pinata, not Lighthouse. `node.lighthouse.storage` is blocked on the development
-network: DNS resolves but the TCP connection never opens, while Base and Pinata are both
-reachable from the same machine. The route supports either and tries Pinata first, so a
-Lighthouse key still works anywhere it is reachable.
+Run `npm run dev` in `frontend/`, connect a wallet on Base Sepolia, and scan a plastic
+bottle, an aluminium can, or a banana. Everything downstream of the match is already
+verified working against the live contract.
 
-Get a free JWT at https://app.pinata.cloud (API Keys, New Key, copy the JWT) and put it in
-`frontend/.env.local`:
-
-```
-PINATA_JWT=your_jwt_here
-```
-
-No `NEXT_PUBLIC_` prefix. That prefix is what leaked the key to the browser before.
+If real objects refuse more often than you like, widen the map in
+`frontend/lib/classify.ts`. The map, not the model, is the part worth tuning.
 
 **1b. Optional: verify the source on BaseScan** so judges can read the code on-chain.
 Needs a free key from https://etherscan.io/apis in `contracts/.env` as `BASESCAN_API_KEY`,
@@ -275,6 +272,26 @@ GPS clustering as an anti-gaming signal is now claimed nowhere and implemented n
 which is consistent. If you want it back as a differentiator, it needs a `bytes8 geohash`
 parameter on `submitProof`, a per-geohash daily cap, and updates to every test. Do not
 re-add the claim to the docs without the code.
+
+### 9.2b Verified on the live contract
+
+Not test-suite claims. These were run against Base Sepolia:
+
+| Check | Result |
+|---|---|
+| Pin a real image to IPFS | CID `QmYLH36w1G121xxZF5BRHewu3aTK6i7Rn7xZMqrHu3x95i` via Pinata |
+| `submitProof` mints | Receipt NFT #0, 298,910 gas, block 46298860 |
+| `tokenURI` points at the pin | `ipfs://QmYLH36w…` |
+| Material-weighted reward | 20 $RECLAIM for PET |
+| Duplicate image rejected | reverts |
+| Confidence below 85 rejected | reverts |
+| Invalid material rejected | reverts |
+| `auditFlagged` on-chain vs off-chain | identical |
+| Frontend live panel | shows the real receipt, links to the real tx |
+
+Note the gas figure. A first mint costs about 299k because the storage slots are cold; the
+253.6k in `docs/TEST_REPORT.md` is the warm-slot figure from the test suite. Both are far
+under a cent on Base.
 
 ### 9.3 Known limitations worth stating out loud to a judge
 

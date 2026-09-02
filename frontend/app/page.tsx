@@ -117,18 +117,29 @@ export default function Home() {
   useEffect(() => {
     if (!CONTRACT_ADDRESS || !publicClient) return;
     let alive = true;
-    // Bounded lookback. "earliest" rescans the chain on every mount and most
-    // public RPCs reject a range that wide.
-    const LOOKBACK = 50_000n;
+    // Base Sepolia caps eth_getLogs at a 10,000 block range, which is only about
+    // 5.5 hours. Walk a few windows back so receipts minted yesterday still show.
+    const WINDOW = 9_000n;
+    const WINDOWS = 5n;
+    const proofEvent = RECLAIM_ABI.find((x) => x.type === "event" && x.name === "ProofSubmitted") as any;
     publicClient
       .getBlockNumber()
-      .then((head) =>
-        publicClient.getLogs({
-          address: CONTRACT_ADDRESS,
-          event: RECLAIM_ABI.find((x) => x.type === "event" && x.name === "ProofSubmitted") as any,
-          fromBlock: head > LOOKBACK ? head - LOOKBACK : 0n,
-        })
-      )
+      .then(async (head) => {
+        const floor = head > WINDOW * WINDOWS ? head - WINDOW * WINDOWS : 0n;
+        const ranges = [];
+        for (let to = head; to > floor; to -= WINDOW) {
+          const from = to - WINDOW + 1n > floor ? to - WINDOW + 1n : floor;
+          ranges.push({ from, to });
+        }
+        const batches = await Promise.all(
+          ranges.map((r) =>
+            publicClient
+              .getLogs({ address: CONTRACT_ADDRESS, event: proofEvent, fromBlock: r.from, toBlock: r.to })
+              .catch(() => [])
+          )
+        );
+        return batches.flat();
+      })
       .then((logs) => {
         if (!alive) return;
         setProofs(
@@ -141,7 +152,7 @@ export default function Home() {
           }))
         );
       })
-      .catch(() => {});
+      .catch((e) => console.warn("Could not load on-chain receipts:", e));
     return () => { alive = false; };
   }, [publicClient, tx]);
 
@@ -627,7 +638,7 @@ export default function Home() {
         <div className="rounded-[18px] border border-ink bg-ink text-paper overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 md:px-6 py-4 border-b border-white/10">
             <p className="font-mono text-[11px] tracking-[0.12em] uppercase text-white/70">Live lattice • ProofSubmitted events on Base Sepolia</p>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white text-ink px-3 py-1.5 font-mono text-[11px] font-medium"><span className="h-1.5 w-1.5 rounded-full bg-verified animate-pulse" /> {proofs.length} receipts</span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white text-ink px-3 py-1.5 font-mono text-[11px] font-medium"><span className="h-1.5 w-1.5 rounded-full bg-verified animate-pulse" /> {proofs.length} receipt{proofs.length === 1 ? "" : "s"}</span>
           </div>
           <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-0">
             <div className="p-5 md:p-6">
