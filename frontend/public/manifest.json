@@ -1,0 +1,12 @@
+{
+  "name": "ReClaim Protocol",
+  "short_name": "ReClaim",
+  "description": "Scan household waste, print a verifiable receipt on Base Sepolia. Phone-as-oracle DePIN.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFBF0",
+  "theme_color": "#0F0F0E",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

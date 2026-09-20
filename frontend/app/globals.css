@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { color-scheme: light dark; }
+#hero, #mechanism, #proofs { scroll-margin-top: 6rem; }
+button, a, [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.t-panel { overscroll-behavior: contain; }
+
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
 
 * { font-variant-ligatures: common-ligatures; }
@@ -11,6 +16,7 @@ body {
   color: #0F0F0E;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 ::selection { background: #FFB800; color: #0F0F0E; }
 
@@ -26,12 +32,16 @@ body {
   background-image: radial-gradient(circle, #0F0F0E 1.25px, transparent 1.6px);
   background-size: 10px 10px;
   background-repeat: repeat-x;
-  height: 10px;
+  height: 6px;
+  flex-shrink: 0;
 }
 .thermal-fade { mask-image: linear-gradient(to bottom, black 82%, transparent 100%); }
 .focus-ring:focus-visible { outline: 2px solid #FF3B30; outline-offset: 2px; }
 
-/* Motion tokens — transitions.dev scale */
+/* Tabular numbers for dynamic values */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Motion tokens -- transitions.dev scale */
 :root {
   --duration-stagger: 40ms;
   --duration-micro: 80ms;
@@ -54,7 +64,7 @@ body {
   --blur-medium: 3px;
 }
 
-/* Panel reveal — mint rail */
+/* Panel reveal -- mint rail */
 .t-panel {
   display: grid;
   grid-template-rows: 0fr;
@@ -70,7 +80,7 @@ body {
 }
 .t-panel.is-open .t-panel-content { opacity: 1; filter: blur(0); transform: translateY(0); }
 
-/* Text states swap — material label */
+/* Text states swap -- material label */
 .t-textswap { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; }
 .t-textswap-inner {
   display: inline-block;
@@ -96,7 +106,7 @@ body {
 .t-shake-msg { opacity: 0; transform: translateY(calc(-1 * var(--distance-micro))); transition: opacity var(--duration-quick) var(--ease-out), transform var(--duration-quick) var(--ease-out); }
 .t-shake-msg.is-visible { opacity: 1; transform: translateY(0); }
 
-/* Success check — focal moment */
+/* Success check -- focal moment */
 .t-success { position: relative; }
 .t-success-circle { stroke-dasharray: 88; stroke-dashoffset: 88; transition: stroke-dashoffset var(--duration-very-slow) var(--ease-smooth-out); }
 .t-success.is-drawn .t-success-circle { stroke-dashoffset: 0; }
@@ -105,15 +115,60 @@ body {
 .t-success-pop { transform: scale(0.96); opacity: 0; filter: blur(var(--blur-small)); transition: transform var(--duration-very-slow) var(--ease-bounce), opacity var(--duration-fast) var(--ease-out), filter var(--duration-fast) var(--ease-out); }
 .t-success.is-drawn .t-success-pop { transform: scale(1); opacity: 1; filter: blur(0); }
 
-/* Icon swap — camera toggle */
+/* Icon swap -- camera toggle */
 .t-icon { position: relative; width: 18px; height: 18px; overflow: hidden; }
 .t-icon-swap { position: absolute; inset: 0; display: grid; place-items: center; transition: transform var(--duration-fast) var(--ease-in-out), filter var(--duration-fast) var(--ease-in-out), opacity var(--duration-fast) var(--ease-in-out); }
 .t-icon-swap.out { transform: translateY(var(--distance-micro)) scale(0.96); filter: blur(var(--blur-small)); opacity: 0; }
 .t-icon-swap.in { transform: translateY(0) scale(1); filter: blur(0); opacity: 1; }
+
+/* Scale on press -- tactile feedback */
+.press-scale { transition: transform var(--duration-quick) var(--ease-out); }
+.press-scale:active { transform: scale(0.96); }
+
+/* Image outline for depth */
+.img-outline { outline: 1px solid rgba(0, 0, 0, 0.08); }
+
+/* Scroll reveal — staggered entrances (JS adds .js + .is-visible; no-JS stays visible) */
+.js .t-reveal { opacity: 0; transform: translateY(12px); filter: blur(2px); transition: opacity var(--duration-slow) var(--ease-smooth-out), transform var(--duration-slow) var(--ease-smooth-out), filter var(--duration-slow) var(--ease-smooth-out); }
+.js .t-reveal.is-visible { opacity: 1; transform: translateY(0); filter: blur(0); }
+.t-d1 { transition-delay: 60ms; }
+.t-d2 { transition-delay: 120ms; }
+.t-d3 { transition-delay: 180ms; }
+.t-d4 { transition-delay: 240ms; }
+.t-d5 { transition-delay: 300ms; }
+.t-d6 { transition-delay: 360ms; }
+
+/* Receipt print cascade — lines feed in sequence on mount (keyed by CID) */
+@keyframes t-cascade-in { from { opacity: 0; transform: translateY(8px); filter: blur(2px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+.t-cascade > * { animation: t-cascade-in var(--duration-medium) var(--ease-smooth-out) backwards; }
+.t-cascade > *:nth-child(2) { animation-delay: 70ms; }
+.t-cascade > *:nth-child(3) { animation-delay: 140ms; }
+.t-cascade > *:nth-child(4) { animation-delay: 210ms; }
+.t-cascade > *:nth-child(5) { animation-delay: 280ms; }
+.t-cascade > *:nth-child(6) { animation-delay: 350ms; }
+
+/* Status text swap — fade-rise on every status change (keyed by status) */
+@keyframes t-status-in { from { opacity: 0; transform: translateY(4px); filter: blur(2px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+.t-status-key { display: inline-block; animation: t-status-in var(--duration-fast) var(--ease-smooth-out); }
+
+/* Step pop — springy tick when the active step changes (keyed by step) */
+@keyframes t-pop-in { 0% { opacity: 0; transform: scale(0.6); } 100% { opacity: 1; transform: scale(1); } }
+.t-pop { animation: t-pop-in var(--duration-medium) var(--ease-bounce); }
+
+/* Step connector fill — scaleX wipe instead of an instant color swap */
+.t-connector { transform-origin: left center; transform: scaleX(0); transition: transform var(--duration-slow) var(--ease-smooth-out); }
+.t-connector.is-done { transform: scaleX(1); }
+
+/* Skeleton shimmer — proofs loading state (transform-only sheen) */
+@keyframes t-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.t-skeleton { position: relative; overflow: hidden; background: rgba(255,255,255,0.08); }
+.t-skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent); animation: t-shimmer 1.4s var(--ease-linear) infinite; }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   .t-panel { transition: none; }
   .t-panel-content { transition: none; }
+  .press-scale { transition: none; }
+  .press-scale:active { transform: none; }
 }
