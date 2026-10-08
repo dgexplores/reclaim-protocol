@@ -9,6 +9,16 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Network: Base Sepolia](https://img.shields.io/badge/Network-Base%20Sepolia-blue)
 ![Stack: Solidity + Next.js + AI](https://img.shields.io/badge/Stack-Solidity%20%7C%20Next.js%20%7C%20AI-orange)
+[![CI](https://github.com/dgexplores/reclaim-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/dgexplores/reclaim-protocol/actions/workflows/ci.yml)
+
+## 60-second brief
+
+Phone-camera scans of waste become on-chain Receipt NFTs + material-weighted $RECLAIM rewards on Base Sepolia: on-device MobileNet classification, IPFS pinning with keccak256 proof hash, anti-gaming enforced in Solidity. Stack: Solidity 0.8.24 + Hardhat, Next.js 14 + wagmi/viem, TensorFlow.js in-browser. No live demo of this app (see section 3).
+
+| | |
+|---|---|
+| Code | [`contracts/`](contracts) — ReClaim, ReClaimToken, ReceiptNFT + tests · [`frontend/`](frontend) — scanner, pinning API, wallet writes |
+| Docs | [`docs/`](docs) (problem, solution, architecture, demo guide) · [`PRODUCT.md`](PRODUCT.md) · [`DESIGN.md`](DESIGN.md) |
 
 ---
 
@@ -45,7 +55,7 @@ Existing solutions are centralized databases (RecycleBank, etc.) or manual audit
 
 ## 3. Demo
 
-- **Live Demo:** `https://reclaim-protocol.vercel.app` (deploy after hackathon)
+- **Live Demo:** no live deployment of this app — `https://reclaim-protocol.vercel.app` currently serves an unrelated page (verified 2026-10-08). Run the frontend locally per section 7.
 - **First minted receipt (real, on-chain):** [tx `0xe48c33c5…deaabe`](https://sepolia.basescan.org/tx/0xe48c33c590a5fff70eca9db9d18d495f289e7d5e00b72de329b3db8419deaabe)
   mints Receipt NFT #0 with `tokenURI = ipfs://QmYLH36w1G121xxZF5BRHewu3aTK6i7Rn7xZMqrHu3x95i`
   and pays 20 $RECLAIM. The pinned bytes are fetchable from any IPFS gateway, and their
